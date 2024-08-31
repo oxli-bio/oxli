@@ -4,6 +4,8 @@ build-backend = "maturin"
 
 [project]
 name = "oxli"
+description = "k-mer tools"
+readme = "README.md"
 requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Rust",
@@ -14,3 +16,6 @@ dynamic = ["version"]
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
+
+[metadata]
+license = { file = "LICENSE" }
