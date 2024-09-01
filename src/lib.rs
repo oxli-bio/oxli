@@ -2,7 +2,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 // use rayon::prelude::*;
 
-use anyhow::{anyhow, Error, Result};
+use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 
 // use sourmash::sketch::nodegraph::Nodegraph;
@@ -40,7 +40,7 @@ impl KmerCountTable {
                 42,
             );
 
-            let mut hashval = hashes.next().unwrap();
+            let hashval = hashes.next().unwrap();
             Ok(hashval?)
         }
     }
@@ -103,7 +103,7 @@ impl KmerCountTable {
                     self.count_hash(x);
                     ()
                 }
-                Err(err) => (),
+                Err(_err) => (), // @CTB
             }
             n += 1;
         }
