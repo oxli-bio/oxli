@@ -21,7 +21,7 @@ functionality from khmer making an appearance in oxli.
 Second, it's written on top of the
 [sourmash](https://sourmash.readthedocs.io/)
 [rust library](https://sourmash.readthedocs.io/), and the underlying
-code for dealing with sequence is pretty well tested.
+code for dealing with sequence data is pretty well tested.
 
 ## What's the history here?
 
@@ -42,5 +42,7 @@ The history is a bit convoluted:
   khmer functionality.
   
 * voila, oxli was born.
+
+---
 
 (Sep 2024)
