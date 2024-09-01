@@ -37,3 +37,9 @@ def test_consume_2():
     assert cg.get("ATCG") == 1
     assert cg.get("TCGG") == 1
     assert cg.get("CCGA") == 1 # reverse complement!
+
+def test_consume_bad_DNA():
+    cg = oxli.KmerCountTable(4)
+    seq = "ATCGGX"
+    print(cg.consume(seq))
+    assert 0

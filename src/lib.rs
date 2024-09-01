@@ -97,13 +97,14 @@ impl KmerCountTable {
 
         let mut n = 0;
         for hash_value in hashes {
+            // eprintln!("hash_value: {:?}", hash_value);
             match hash_value {
                 Ok(0) => continue,
                 Ok(x) => {
                     self.count_hash(x);
                     ()
                 }
-                Err(_err) => (), // @CTB
+                Err(err) => break, // @CTB
             }
             n += 1;
         }
