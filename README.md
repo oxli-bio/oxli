@@ -5,6 +5,17 @@ Author: C. Titus Brown (@ctb), ctbrown@ucdavis.edu
 oxli is a simple Rust library + Python interface for counting k-mers
 in genomic sequencing data.
 
+## Installation
+
+You can try building it yourself:
+```
+mamba env create -f environment.yml -n oxli
+make wheel
+```
+and then install the resulting wheel.
+
+We are working on packaging via conda-forge.
+
 ## Documentation
 
 Please see [the API documentation](doc/api.md).
