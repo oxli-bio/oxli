@@ -7,14 +7,23 @@ in genomic sequencing data.
 
 ## Installation
 
-You can try building it yourself:
+oxli is
+[available on conda-forge for Linux, Mac OS X, and Windows](https://github.com/conda-forge/oxli-feedstock) for Python versions 3.10, 3.11, and 3.12:
+
+```
+conda install oxli
+```
+
+This will install the oxli library. Right now there is only
+[a library interface](doc/api.md).
+
+### For developers
+
+You can also try building it yourself and using it in development mode:
 ```
 mamba env create -f environment.yml -n oxli
-make wheel
+pip install -e .
 ```
-and then install the resulting wheel.
-
-We are working on packaging via conda-forge.
 
 ## Documentation
 
