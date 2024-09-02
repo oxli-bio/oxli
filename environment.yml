@@ -1,0 +1,10 @@
+name: oxli-dev
+channels:
+    - conda-forge
+    - bioconda
+    - defaults
+dependencies:
+    - rust
+    - maturin>=1,<2
+    - pytest
+    - compilers

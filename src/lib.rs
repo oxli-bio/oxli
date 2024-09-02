@@ -19,6 +19,7 @@ struct KmerCountTable {
 #[pymethods]
 impl KmerCountTable {
     #[new]
+    #[pyo3(signature = (ksize))]
     pub fn new(ksize: u8) -> Self {
         Self {
             counts: HashMap::new(),
@@ -85,11 +86,12 @@ impl KmerCountTable {
     }
 
     // Consume this DNA strnig. Return number of k-mers consumed.
-    pub fn consume(&mut self, seq: String) -> PyResult<u64> {
+    #[pyo3(signature = (seq, allow_bad_kmers=true))]
+    pub fn consume(&mut self, seq: String, allow_bad_kmers: bool) -> PyResult<u64> {
         let hashes = SeqToHashes::new(
             seq.as_bytes(),
             self.ksize.into(),
-            false,
+            allow_bad_kmers,
             false,
             HashFunctions::Murmur64Dna,
             42,
@@ -97,14 +99,19 @@ impl KmerCountTable {
 
         let mut n = 0;
         for hash_value in hashes {
+            // eprintln!("hash_value: {:?}", hash_value);
             match hash_value {
                 Ok(0) => continue,
                 Ok(x) => {
                     self.count_hash(x);
                     ()
                 }
-                Err(_err) => (), // @CTB
+                Err(_) => {
+                    let msg = format!("bad k-mer encountered at position {}", n);
+                    return Err(PyValueError::new_err(msg));
+                }
             }
+
             n += 1;
         }
 
