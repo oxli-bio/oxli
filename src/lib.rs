@@ -85,11 +85,12 @@ impl KmerCountTable {
     }
 
     // Consume this DNA strnig. Return number of k-mers consumed.
-    pub fn consume(&mut self, seq: String) -> PyResult<u64> {
+    #[pyo3(signature = (seq, allow_bad_kmers=true))]
+    pub fn consume(&mut self, seq: String, allow_bad_kmers: bool) -> PyResult<u64> {
         let hashes = SeqToHashes::new(
             seq.as_bytes(),
             self.ksize.into(),
-            false,
+            allow_bad_kmers,
             false,
             HashFunctions::Murmur64Dna,
             42,
@@ -104,8 +105,12 @@ impl KmerCountTable {
                     self.count_hash(x);
                     ()
                 }
-                Err(err) => break, // @CTB
+                Err(_) => {
+                    let msg = format!("bad k-mer encountered at position {}", n);
+                    return Err(PyValueError::new_err(msg));
+                }
             }
+
             n += 1;
         }
 
