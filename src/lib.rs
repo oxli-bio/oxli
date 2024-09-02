@@ -120,7 +120,7 @@ impl KmerCountTable {
 }
 
 #[pymodule]
-fn oxli(_py: Python, m: &PyModule) -> PyResult<()> {
+fn oxli(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<KmerCountTable>()?;
     Ok(())
 }
