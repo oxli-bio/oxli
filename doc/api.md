@@ -13,7 +13,7 @@ Import necessary modules:
 Create a KmerCountTable with a k-mer size of 31:
 
 ```python
->>> counts = oxli.KmerCountTable(31)
+>>> counts = oxli.KmerCountTable(ksize=31)
 
 ```
 

@@ -19,6 +19,7 @@ struct KmerCountTable {
 #[pymethods]
 impl KmerCountTable {
     #[new]
+    #[pyo3(signature = (ksize))]
     pub fn new(ksize: u8) -> Self {
         Self {
             counts: HashMap::new(),
