@@ -3,10 +3,10 @@ use pyo3::prelude::*;
 // use rayon::prelude::*;
 
 use anyhow::{anyhow, Result};
+use log::debug;
 use std::collections::HashMap;
 
 // use sourmash::sketch::nodegraph::Nodegraph;
-use sourmash::_hash_murmur;
 use sourmash::encodings::HashFunctions;
 use sourmash::signature::SeqToHashes;
 
@@ -63,7 +63,7 @@ impl KmerCountTable {
                 "kmer size does not match count table ksize",
             ))
         } else {
-            let hashval = _hash_murmur(kmer.as_bytes(), 42);
+            let hashval = self.hash_kmer(kmer).unwrap();
             let count = self.count_hash(hashval);
             Ok(count)
         }
@@ -81,6 +81,7 @@ impl KmerCountTable {
                 Some(count) => count,
                 None => &0,
             };
+            debug!("get: hashval {}, count {}", hashval, count);
             Ok(*count)
         }
     }
@@ -121,6 +122,7 @@ impl KmerCountTable {
 
 #[pymodule]
 fn oxli(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    env_logger::init();
     m.add_class::<KmerCountTable>()?;
     Ok(())
 }
