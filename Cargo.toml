@@ -12,3 +12,4 @@ crate-type = ["cdylib"]
 pyo3 = { version="0.22.2", features = ["extension-module", "anyhow"] }
 sourmash = "0.15.1"
 anyhow = "1.0.86"
+needletail = "0.5.1"

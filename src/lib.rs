@@ -5,6 +5,9 @@ use pyo3::prelude::*;
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 
+extern crate needletail;
+use needletail::{parse_fastx_file, Sequence, FastxReader};
+
 // use sourmash::sketch::nodegraph::Nodegraph;
 use sourmash::_hash_murmur;
 use sourmash::encodings::HashFunctions;
@@ -85,11 +88,9 @@ impl KmerCountTable {
         }
     }
 
-    // Consume this DNA strnig. Return number of k-mers consumed.
-    #[pyo3(signature = (seq, allow_bad_kmers=true))]
-    pub fn consume(&mut self, seq: String, allow_bad_kmers: bool) -> PyResult<u64> {
+    fn consume_bytes(&mut self, seq: &[u8], allow_bad_kmers: bool) -> Result<u64> {
         let hashes = SeqToHashes::new(
-            seq.as_bytes(),
+            seq,
             self.ksize.into(),
             allow_bad_kmers,
             false,
@@ -108,13 +109,43 @@ impl KmerCountTable {
                 }
                 Err(_) => {
                     let msg = format!("bad k-mer encountered at position {}", n);
-                    return Err(PyValueError::new_err(msg));
+                    return Err(anyhow!(msg));
                 }
             }
 
             n += 1;
         }
 
+        Ok(n)
+    }
+
+    // Consume this DNA string. Return number of k-mers consumed.
+    #[pyo3(signature = (seq, allow_bad_kmers=true))]
+    pub fn consume(&mut self, seq: String, allow_bad_kmers: bool) -> PyResult<u64> {
+        match self.consume_bytes(seq.as_bytes(), allow_bad_kmers) {
+            Ok(n) => Ok(n),
+            Err(_) => {
+                //                    let msg = format!("bad k-mer encountered at position {}", n);
+                let msg = format!("invalid character in sequence");
+                Err(PyValueError::new_err(msg))
+            }
+        }
+    }
+
+    #[pyo3(signature = (filename, allow_bad_kmers=true))]
+    pub fn consume_file(&mut self, filename: String, allow_bad_kmers: bool) -> PyResult<u64> {
+        let mut n = 0;
+        let mut reader = parse_fastx_file(&filename).expect("foo");
+
+        while let Some(record) = reader.next() {
+            let record = record.expect("invalid record");
+            let normseq = record.normalize(false);
+
+            match self.consume_bytes(&normseq.into_owned(), allow_bad_kmers) {
+                Ok(n_kmers) => n = n + n_kmers,
+                Err(msg) => return Err(PyValueError::new_err("oops")),
+            }
+        }
         Ok(n)
     }
 }
