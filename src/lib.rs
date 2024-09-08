@@ -1,14 +1,14 @@
-use pyo3::exceptions::PyValueError;
-use pyo3::prelude::*;
-// use rayon::prelude::*;
-
-use anyhow::{anyhow, Result};
-use log::debug;
+// Standard library imports
 use std::collections::{HashMap, HashSet};
 
-// use sourmash::sketch::nodegraph::Nodegraph;
+// External crate imports
+use anyhow::{anyhow, Result};
+use log::debug;
+use pyo3::exceptions::PyValueError;
+use pyo3::prelude::*;
 use sourmash::encodings::HashFunctions;
 use sourmash::signature::SeqToHashes;
+
 
 #[pyclass]
 struct KmerCountTable {
