@@ -9,7 +9,6 @@ use pyo3::prelude::*;
 use sourmash::encodings::HashFunctions;
 use sourmash::signature::SeqToHashes;
 
-
 #[pyclass]
 struct KmerCountTable {
     counts: HashMap<u64, u64>,
@@ -144,15 +143,24 @@ impl KmerCountTable {
     }
 
     pub fn intersection(&self, other: &KmerCountTable) -> HashSet<u64> {
-        self.hash_set().intersection(&other.hash_set()).cloned().collect()
+        self.hash_set()
+            .intersection(&other.hash_set())
+            .cloned()
+            .collect()
     }
 
     pub fn difference(&self, other: &KmerCountTable) -> HashSet<u64> {
-        self.hash_set().difference(&other.hash_set()).cloned().collect()
+        self.hash_set()
+            .difference(&other.hash_set())
+            .cloned()
+            .collect()
     }
 
     pub fn symmetric_difference(&self, other: &KmerCountTable) -> HashSet<u64> {
-        self.hash_set().symmetric_difference(&other.hash_set()).cloned().collect()
+        self.hash_set()
+            .symmetric_difference(&other.hash_set())
+            .cloned()
+            .collect()
     }
 
     // Python dunder methods for set operations
