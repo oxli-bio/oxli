@@ -93,6 +93,13 @@ impl KmerCountTable {
         hash_keys.iter().map(|&key| self.get_hash(key)).collect()
     }
 
+    // Getter for the 'hashes' attribute, returning all hash keys in the table
+    #[getter]
+    pub fn hashes(&self) -> Vec<u64> {
+        // Collect and return all keys from the counts HashMap
+        self.counts.keys().cloned().collect()
+    }
+
     // Consume this DNA string. Return number of k-mers consumed.
     #[pyo3(signature = (seq, allow_bad_kmers=true))]
     pub fn consume(&mut self, seq: String, allow_bad_kmers: bool) -> PyResult<u64> {
