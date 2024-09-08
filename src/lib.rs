@@ -47,14 +47,9 @@ impl KmerCountTable {
     }
 
     pub fn count_hash(&mut self, hashval: u64) -> u64 {
-        let mut count: u64 = 1;
-        if self.counts.contains_key(&hashval) {
-            count = *self.counts.get(&hashval).unwrap();
-            count = count + 1;
-        }
-        self.counts.insert(hashval, count);
-
-        count
+        let count = self.counts.entry(hashval).or_insert(0);
+        *count += 1;
+        *count
     }
 
     pub fn count(&mut self, kmer: String) -> PyResult<u64> {
@@ -159,6 +154,7 @@ impl KmerCountTable {
     }
 }
 
+// Python module definition
 #[pymodule]
 fn oxli(m: &Bound<'_, PyModule>) -> PyResult<()> {
     env_logger::init();
