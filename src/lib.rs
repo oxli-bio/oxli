@@ -81,6 +81,18 @@ impl KmerCountTable {
         }
     }
 
+    // Get the count for a specific hash value directly
+    pub fn get_hash(&self, hashval: u64) -> u64 {
+        // Return the count for the hash value, or 0 if it does not exist
+        *self.counts.get(&hashval).unwrap_or(&0)
+    }
+
+    // Get counts for a list of hash keys and return an list of counts
+    pub fn get_hash_array(&self, hash_keys: Vec<u64>) -> Vec<u64> {
+        // Map each hash key to its count, defaulting to 0 if the key is not present
+        hash_keys.iter().map(|&key| self.get_hash(key)).collect()
+    }
+
     // Consume this DNA string. Return number of k-mers consumed.
     #[pyo3(signature = (seq, allow_bad_kmers=true))]
     pub fn consume(&mut self, seq: String, allow_bad_kmers: bool) -> PyResult<u64> {
