@@ -4,7 +4,7 @@ use pyo3::prelude::*;
 
 use anyhow::{anyhow, Result};
 use log::debug;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 // use sourmash::sketch::nodegraph::Nodegraph;
 use sourmash::encodings::HashFunctions;
@@ -117,6 +117,45 @@ impl KmerCountTable {
         }
 
         Ok(n)
+    }
+
+    // Helper method to get hash set of k-mers
+    fn hash_set(&self) -> HashSet<u64> {
+        self.counts.keys().cloned().collect()
+    }
+
+    // Set operation methods
+    pub fn union(&self, other: &KmerCountTable) -> HashSet<u64> {
+        self.hash_set().union(&other.hash_set()).cloned().collect()
+    }
+
+    pub fn intersection(&self, other: &KmerCountTable) -> HashSet<u64> {
+        self.hash_set().intersection(&other.hash_set()).cloned().collect()
+    }
+
+    pub fn difference(&self, other: &KmerCountTable) -> HashSet<u64> {
+        self.hash_set().difference(&other.hash_set()).cloned().collect()
+    }
+
+    pub fn symmetric_difference(&self, other: &KmerCountTable) -> HashSet<u64> {
+        self.hash_set().symmetric_difference(&other.hash_set()).cloned().collect()
+    }
+
+    // Python dunder methods for set operations
+    fn __or__(&self, other: &KmerCountTable) -> HashSet<u64> {
+        self.union(other)
+    }
+
+    fn __and__(&self, other: &KmerCountTable) -> HashSet<u64> {
+        self.intersection(other)
+    }
+
+    fn __sub__(&self, other: &KmerCountTable) -> HashSet<u64> {
+        self.difference(other)
+    }
+
+    fn __xor__(&self, other: &KmerCountTable) -> HashSet<u64> {
+        self.symmetric_difference(other)
     }
 }
 
