@@ -86,7 +86,7 @@ impl KmerCountTable {
         }
     }
 
-    // Consume this DNA strnig. Return number of k-mers consumed.
+    // Consume this DNA string. Return number of k-mers consumed.
     #[pyo3(signature = (seq, allow_bad_kmers=true))]
     pub fn consume(&mut self, seq: String, allow_bad_kmers: bool) -> PyResult<u64> {
         let hashes = SeqToHashes::new(
