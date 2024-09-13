@@ -26,6 +26,12 @@ impl KmerCountTable {
         }
     }
 
+    // TODO: Optionally store hash:kmer pair when counting a new kmer
+    // Modify KmerCountTable to optionally store map of hash:kmer
+    // Modify SeqToHashes to return canonical kmer & hash
+
+    // TODO: Add function to get canonical kmer using hash key
+
     fn hash_kmer(&self, kmer: String) -> Result<u64> {
         if kmer.len() as u8 != self.ksize {
             Err(anyhow!("wrong ksize"))
@@ -92,12 +98,47 @@ impl KmerCountTable {
         hash_keys.iter().map(|&key| self.get_hash(key)).collect()
     }
 
+    // TODO: Add method "drop"
+    // remove kmer from table
+
+    // TODO: Add method "drop_hash"
+    // remove hash from table
+
+    // TODO: Add "mincut". Remove counts below a minimum cutoff.
+
+    // TODO: Add "maxcut". Remove counts above an maximum cutoff.
+
+    // TODO: Serialize the KmerCountTable instance to a JSON string.
+
+    // TODO: Compress JSON string with gzip and save to file
+
+    // TODO: Static method to load KmerCountTable from serialized JSON. Yield new object.
+
+    // TODO: Add method "dump"
+    // Output tab delimited kmer:count pairs
+    // Default sort by count
+    // Option sort kmers lexicographically
+
+    // TODO: Add method "dump_hash"
+    // Output tab delimited hash:count pairs
+    // Default sort by count
+    // Option sort on keys
+
+    // TODO: Add method "histo"
+    // Output frequency counts
+
     // Getter for the 'hashes' attribute, returning all hash keys in the table
     #[getter]
     pub fn hashes(&self) -> Vec<u64> {
         // Collect and return all keys from the counts HashMap
         self.counts.keys().cloned().collect()
     }
+
+    // TODO: Getter for the version attribute
+    // Store oxli version when instance is created
+
+    // TODO: Getter for the consumed seq len attribute
+    // Update tracker when DNA is processed with count() or consume()
 
     // Consume this DNA string. Return number of k-mers consumed.
     #[pyo3(signature = (seq, allow_bad_kmers=true))]
@@ -179,6 +220,16 @@ impl KmerCountTable {
     fn __xor__(&self, other: &KmerCountTable) -> HashSet<u64> {
         self.symmetric_difference(other)
     }
+
+    // Python dunder method for __iter__
+
+    // Python dunder method for __next__
+
+    // Python dunder method for __len__
+
+    // Python dunder method for __getitem__
+
+    // Python dunder method for __setitem__
 }
 
 // Python module definition

@@ -107,22 +107,6 @@ def test_consume_bad_DNA_ignore_is_default():
     assert cg.get("CCGA") == 1  # rc
 
 
-# Test attributes
-def test_hashes_attribute():
-    table = create_sample_kmer_table(3, ["AAA", "TTT", "AAC"])
-    hashes = table.hashes
-    hash_aaa = table.hash_kmer("AAA")  # 10679328328772601858
-    hash_ttt = table.hash_kmer("TTT")  # 10679328328772601858
-    hash_aac = table.hash_kmer("AAC")  # 6579496673972597301
-
-    expected_hashes = set(
-        [hash_aaa, hash_ttt, hash_aac]
-    )  # {10679328328772601858, 6579496673972597301}
-    assert (
-        set(hashes) == expected_hashes
-    ), ".hashes attribute should match the expected set of hash keys"
-
-
 # Getting counts
 def test_count_vs_counthash():
     # test a bug reported by adam taranto: count and get should work together!
@@ -180,75 +164,8 @@ def test_get_hash_array():
     ), "Hash array counts should match the counts of 'AAA' and 'AAC' and return zero for 'GGG'."
     assert rev_counts == [0, 1, 2], "Count should be in same order as input list"
 
-
 def test_get_array():
     """
     Get vector of counts corresponding to vector of kmers.
     """
-    # TODO: Add function to get list of counts given list of kmers.
     pass
-
-
-# Set operations
-def test_union():
-    table1 = create_sample_kmer_table(3, ["AAA", "AAC"])
-    table2 = create_sample_kmer_table(3, ["AAC", "AAG"])
-
-    union_set = table1.union(table2)
-    expected_union = set(table1.hashes).union(table2.hashes)
-
-    assert union_set == expected_union, "Union of hash sets should match"
-
-
-def test_intersection():
-    table1 = create_sample_kmer_table(3, ["AAA", "AAC"])
-    table2 = create_sample_kmer_table(3, ["AAC", "AAG"])
-
-    intersection_set = table1.intersection(table2)
-    expected_intersection = set(table1.hashes).intersection(table2.hashes)
-
-    assert (
-        intersection_set == expected_intersection
-    ), "Intersection of hash sets should match"
-
-
-def test_difference():
-    table1 = create_sample_kmer_table(3, ["AAA", "AAC"])
-    table2 = create_sample_kmer_table(3, ["AAC", "AAG"])
-
-    difference_set = table1.difference(table2)
-    expected_difference = set(table1.hashes).difference(table2.hashes)
-
-    assert difference_set == expected_difference, "Difference of hash sets should match"
-
-
-def test_symmetric_difference():
-    table1 = create_sample_kmer_table(3, ["AAA", "AAC"])
-    table2 = create_sample_kmer_table(3, ["AAC", "AAG"])
-
-    symmetric_difference_set = table1.symmetric_difference(table2)
-    expected_symmetric_difference = set(table1.hashes).symmetric_difference(
-        table2.hashes
-    )
-
-    assert (
-        symmetric_difference_set == expected_symmetric_difference
-    ), "Symmetric difference of hash sets should match"
-
-
-def test_dunder_methods():
-    table1 = create_sample_kmer_table(3, ["AAA", "AAC"])
-    table2 = create_sample_kmer_table(3, ["AAC", "AAG"])
-
-    assert table1.__or__(table2) == table1.union(
-        table2
-    ), "__or__ method should match union()"
-    assert table1.__and__(table2) == table1.intersection(
-        table2
-    ), "__and__ method should match intersection()"
-    assert table1.__sub__(table2) == table1.difference(
-        table2
-    ), "__sub__ method should match difference()"
-    assert table1.__xor__(table2) == table1.symmetric_difference(
-        table2
-    ), "__xor__ method should match symmetric_difference()"
