@@ -98,15 +98,86 @@ impl KmerCountTable {
         hash_keys.iter().map(|&key| self.get_hash(key)).collect()
     }
 
-    // TODO: Add method "drop"
-    // remove kmer from table
+    /// Drop a k-mer from the count table by its string representation
+    pub fn drop(&mut self, kmer: String) -> PyResult<()> {
+        // Ensure that the k-mer length matches the table's ksize
+        if kmer.len() as u8 != self.ksize {
+            // Return an error if the lengths do not match
+            Err(PyValueError::new_err(
+                "kmer size does not match count table ksize",
+            ))
+        } else {
+            // Compute the hash of the k-mer using the same method used for counting
+            let hashval = self.hash_kmer(kmer).unwrap();
 
-    // TODO: Add method "drop_hash"
-    // remove hash from table
+            // Attempt to remove the k-mer's hash from the counts HashMap
+            if self.counts.remove(&hashval).is_some() {
+                // If the k-mer was successfully removed, return Ok
+                debug!("K-mer with hashval {} removed from table", hashval);
+                Ok(())
+            } else {
+                // If the k-mer was not found, return Ok without an error
+                debug!("K-mer with hashval {} not found in table", hashval);
+                Ok(())
+            }
+        }
+    }
 
-    // TODO: Add "mincut". Remove counts below a minimum cutoff.
+    /// Drop a k-mer from the count table by its hash value
+    pub fn drop_hash(&mut self, hashval: u64) -> PyResult<()> {
+        // Attempt to remove the hash value from the counts HashMap
+        if self.counts.remove(&hashval).is_some() {
+            // If the hash value was successfully removed, log and return Ok
+            debug!("Hash value {} removed from table", hashval);
+            Ok(())
+        } else {
+            // If the hash value was not found, log and return Ok without error
+            debug!("Hash value {} not found in table", hashval);
+            Ok(())
+        }
+    }
 
-    // TODO: Add "maxcut". Remove counts above an maximum cutoff.
+    /// Remove all k-mers with counts less than a given threshold
+    pub fn mincut(&mut self, min_count: u64) -> PyResult<u64> {
+        // Create a vector to store the keys (hashes) to be removed
+        let mut to_remove = Vec::new();
+
+        // Iterate over the HashMap and identify keys with counts less than the threshold
+        for (&hash, &count) in self.counts.iter() {
+            if count < min_count {
+                to_remove.push(hash);
+            }
+        }
+
+        // Remove the identified keys from the counts HashMap
+        for &hash in &to_remove {
+            self.counts.remove(&hash);
+        }
+
+        // Return the number of k-mers removed
+        Ok(to_remove.len() as u64)
+    }
+
+    /// Remove all k-mers with counts greater than a given threshold
+    pub fn maxcut(&mut self, max_count: u64) -> PyResult<u64> {
+        // Create a vector to store the keys (hashes) to be removed
+        let mut to_remove = Vec::new();
+
+        // Iterate over the HashMap and identify keys with counts greater than the threshold
+        for (&hash, &count) in self.counts.iter() {
+            if count > max_count {
+                to_remove.push(hash);
+            }
+        }
+
+        // Remove the identified keys from the counts HashMap
+        for &hash in &to_remove {
+            self.counts.remove(&hash);
+        }
+
+        // Return the number of k-mers removed
+        Ok(to_remove.len() as u64)
+    }
 
     // TODO: Serialize the KmerCountTable instance to a JSON string.
 
