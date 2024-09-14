@@ -9,10 +9,14 @@ use pyo3::prelude::*;
 use sourmash::encodings::HashFunctions;
 use sourmash::signature::SeqToHashes;
 
+// Set version variable
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 #[pyclass]
 struct KmerCountTable {
     counts: HashMap<u64, u64>,
     pub ksize: u8,
+    version: String,
 }
 
 #[pymethods]
@@ -23,6 +27,7 @@ impl KmerCountTable {
         Self {
             counts: HashMap::new(),
             ksize,
+            version: VERSION.to_string(), // Initialize the version field
         }
     }
 
@@ -134,8 +139,11 @@ impl KmerCountTable {
         self.counts.keys().cloned().collect()
     }
 
-    // TODO: Getter for the version attribute
-    // Store oxli version when instance is created
+    // Attribute to access the version of oxli that the table was created with
+    #[getter]
+    pub fn version(&self) -> &str {
+        &self.version
+    }
 
     // TODO: Getter for the consumed seq len attribute
     // Update tracker when DNA is processed with count() or consume()
