@@ -255,8 +255,18 @@ impl KmerCountTable {
     }
 
     // Python dunder method for __getitem__
+    fn __getitem__(&self, kmer: String) -> PyResult<u64> {
+        self.get(kmer)
+    }
 
     // Python dunder method for __setitem__
+    pub fn __setitem__(&mut self, kmer: String, count: u64) -> PyResult<()> {
+        // Calculate the hash for the k-mer
+        let hashval = self.hash_kmer(kmer)?;
+        // Set the count for the k-mer
+        self.counts.insert(hashval, count);
+        Ok(())
+    }
 }
 
 // Python module definition
