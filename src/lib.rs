@@ -250,6 +250,9 @@ impl KmerCountTable {
     // Python dunder method for __next__
 
     // Python dunder method for __len__
+    fn __len__(&self) -> usize {
+        self.counts.len()
+    }
 
     // Python dunder method for __getitem__
 
