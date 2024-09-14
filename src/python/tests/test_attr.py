@@ -50,9 +50,31 @@ def test_kmer_count_table_version():
     ), f"Expected version {expected_version}, but got {kmer_table.version}"
 
 
-def test_total_consumed_seq_len_attr():
-    """Should log total seq len consumed."""
-    # Individual kmers
-    # Long seqs with multiple kmers
-    # Exclude invalid kmers?
-    pass
+def test_initial_consumed():
+    kmer_table = oxli.KmerCountTable(ksize=31)
+    assert kmer_table.consumed == 0, "Initial consumed should be 0"
+
+
+def test_consumed_after_count():
+    kmer_table = oxli.KmerCountTable(ksize=16)
+    kmer_table.count("ACGTACGTACGTACGT")  # Length is 16
+    assert (
+        kmer_table.consumed == 16
+    ), "consumed should be updated to 16 after counting k-mer"
+
+
+def test_consumed_after_consume():
+    kmer_table = oxli.KmerCountTable(ksize=16)
+    kmer_table.consume("ACGTACGXACGTACGT", allow_bad_kmers=True)  # Length is 16
+    assert (
+        kmer_table.consumed == 16
+    ), "consumed should be updated to 16 after consuming sequence"
+
+
+def test_consumed_after_multiple_operations():
+    kmer_table = oxli.KmerCountTable(ksize=16)
+    kmer_table.count("ACGTACGTACGTACGT")  # Length is 16
+    kmer_table.consume("GCTAGCTAGCTA")  # Length is 12, but no kmers added as > 16
+    assert (
+        kmer_table.consumed == 28
+    ), "consumed should be updated to 28 after multiple operations"
