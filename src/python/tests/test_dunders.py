@@ -34,12 +34,38 @@ def test_next_dunder_method():
     pass
 
 
-def test_getitem_dunder_method():
-    """Query an object to using the indexing syntax (obj[key])"""
-    # Same behaviour as .get()
-    pass
-
-
-def test_setitem_dunder_method():
+def test_setitem():
     """Set values using the indexing syntax (obj[key] = value)"""
-    pass
+    kmer_table = oxli.KmerCountTable(ksize=16)
+    kmer_table["ACGTACGTACGTACGT"] = 5  # Set count directly
+    assert (
+        kmer_table["ACGTACGTACGTACGT"] == 5
+    ), "Value should be 5 after setting with __setitem__"
+
+
+def test_getitem():
+    """Query an object to using the indexing syntax (obj[key])"""
+    kmer_table = oxli.KmerCountTable(ksize=16)
+    kmer_table["ACGTACGTACGTACGT"] = 5
+    assert (
+        kmer_table["ACGTACGTACGTACGT"] == 5
+    ), "Value should be 5 after setting with __setitem__"
+    assert kmer_table["ACGTACGTACGTACGT"] == kmer_table.get(
+        "ACGTACGTACGTACGT"
+    ), "Behaviour should be same as .get()"
+
+    # Check for a k-mer that does not exist
+    assert (
+        kmer_table["CCCCCCCCCCCCCCCC"] == 0
+    ), "Default value for non-existent k-mer should be 0"
+
+
+def test_setitem_update():
+    kmer_table = oxli.KmerCountTable(ksize=16)
+    kmer_table.count("ACGTACGTACGTACGT")  # Set count to 1
+    kmer_table["ACGTACGTACGTACGT"] = 5  # Update count to 5
+    assert kmer_table.get("ACGTACGTACGTACGT") == 5
+    kmer_table["ACGTACGTACGTACGT"] = 10  # Update the count
+    assert (
+        kmer_table["ACGTACGTACGTACGT"] == 10
+    ), "Value should be updated to 10 after setting with __setitem__"
