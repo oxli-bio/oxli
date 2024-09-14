@@ -245,9 +245,12 @@ impl KmerCountTable {
         self.symmetric_difference(other)
     }
 
-    // Python dunder method for __iter__
-
-    // Python dunder method for __next__
+    // Python __iter__ method to return an iterator
+    pub fn __iter__(slf: PyRef<Self>) -> KmerCountTableIterator {
+        KmerCountTableIterator {
+            inner: slf.counts.clone().into_iter(), // Clone the HashMap and convert to iterator
+        }
+    }
 
     // Python dunder method for __len__
     fn __len__(&self) -> usize {
@@ -266,6 +269,19 @@ impl KmerCountTable {
         // Set the count for the k-mer
         self.counts.insert(hashval, count);
         Ok(())
+    }
+}
+
+// Iterator implementation for KmerCountTable
+#[pyclass]
+pub struct KmerCountTableIterator {
+    inner: std::collections::hash_map::IntoIter<u64, u64>, // Now we own the iterator
+}
+
+#[pymethods]
+impl KmerCountTableIterator {
+    pub fn __next__(mut slf: PyRefMut<Self>) -> Option<(u64, u64)> {
+        slf.inner.next()
     }
 }
 
