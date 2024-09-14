@@ -155,6 +155,12 @@ impl KmerCountTable {
         self.consumed
     }
 
+    // Getter for the sum of all counts in the table.
+    #[getter]
+    pub fn sum_counts(&self) -> u64 {
+        self.counts.values().sum()
+    }
+
     // Consume this DNA string. Return number of k-mers consumed.
     #[pyo3(signature = (seq, allow_bad_kmers=true))]
     pub fn consume(&mut self, seq: String, allow_bad_kmers: bool) -> PyResult<u64> {
