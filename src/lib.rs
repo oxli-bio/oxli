@@ -17,6 +17,7 @@ struct KmerCountTable {
     counts: HashMap<u64, u64>,
     pub ksize: u8,
     version: String,
+    consumed: u64,
 }
 
 #[pymethods]
@@ -28,6 +29,7 @@ impl KmerCountTable {
             counts: HashMap::new(),
             ksize,
             version: VERSION.to_string(), // Initialize the version field
+            consumed: 0,                  // Initialize the total sequence length tracker
         }
     }
 
@@ -68,8 +70,10 @@ impl KmerCountTable {
                 "kmer size does not match count table ksize",
             ))
         } else {
-            let hashval = self.hash_kmer(kmer).unwrap();
+            let hashval = self.hash_kmer(kmer.clone()).unwrap();
             let count = self.count_hash(hashval);
+            // Update the total sequence length tracker
+            self.consumed += kmer.len() as u64;
             Ok(count)
         }
     }
@@ -145,8 +149,11 @@ impl KmerCountTable {
         &self.version
     }
 
-    // TODO: Getter for the consumed seq len attribute
-    // Update tracker when DNA is processed with count() or consume()
+    // Attribute to access the total bases processed with count or consume.
+    #[getter]
+    pub fn consumed(&self) -> u64 {
+        self.consumed
+    }
 
     // Consume this DNA string. Return number of k-mers consumed.
     #[pyo3(signature = (seq, allow_bad_kmers=true))]
@@ -177,6 +184,9 @@ impl KmerCountTable {
 
             n += 1;
         }
+
+        // Update the total sequence consumed tracker
+        self.consumed += seq.len() as u64;
 
         Ok(n)
     }
