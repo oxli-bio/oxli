@@ -17,5 +17,11 @@ dynamic = ["version"]
 [tool.maturin]
 features = ["pyo3/extension-module"]
 
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0",
+    "toml>=0.10"
+]
+
 [metadata]
 license = { file = "LICENSE" }
