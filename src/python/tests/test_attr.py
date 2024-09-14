@@ -50,6 +50,7 @@ def test_kmer_count_table_version():
     ), f"Expected version {expected_version}, but got {kmer_table.version}"
 
 
+# Test consumed bases tracker
 def test_initial_consumed():
     kmer_table = oxli.KmerCountTable(ksize=31)
     assert kmer_table.consumed == 0, "Initial consumed should be 0"
@@ -78,3 +79,34 @@ def test_consumed_after_multiple_operations():
     assert (
         kmer_table.consumed == 28
     ), "consumed should be updated to 28 after multiple operations"
+
+
+# Test total counts attribute
+def test_sum_counts_initial():
+    kmer_table = oxli.KmerCountTable(ksize=16)
+    assert kmer_table.sum_counts == 0, "Initial sum_counts should be 0"
+
+
+def test_sum_counts_after_count():
+    kmer_table = oxli.KmerCountTable(ksize=16)
+    kmer_table.count("ACGTACGTACGTACGT")  # Counts as 1
+    assert (
+        kmer_table.sum_counts == 1
+    ), "sum_counts should be updated to 1 after counting k-mer"
+
+
+def test_sum_counts_after_consume():
+    kmer_table = oxli.KmerCountTable(ksize=16)
+    kmer_table.consume("ACGTACGTACGTACGTA")  # Counts as 2 k-mers
+    assert (
+        kmer_table.sum_counts == 2
+    ), "sum_counts should be updated after consuming sequence"
+
+
+def test_sum_counts_after_multiple_operations():
+    kmer_table = oxli.KmerCountTable(ksize=16)
+    kmer_table.count("ACGTACGTACGTACGT")  # Counts as 1
+    kmer_table.consume("ACGTACGTACGTACGTA")  # Counts as 2 k-mers
+    assert (
+        kmer_table.sum_counts == 3
+    ), "sum_counts should be updated after multiple operations"
