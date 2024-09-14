@@ -1,6 +1,7 @@
 import pytest
 import oxli
 
+
 @pytest.fixture
 def setup_kmer_table():
     """Fixture to set up a KmerCountTable with ksize=4 and some initial k-mers"""
@@ -15,6 +16,7 @@ def setup_kmer_table():
     # ATAT = 1
     # CCCC/GGGG = 3
     return kct
+
 
 def test_drop(setup_kmer_table):
     """
@@ -33,11 +35,12 @@ def test_drop(setup_kmer_table):
 
     # Edge case: Drop a k-mer that doesn't exist, e.g., "GGGA"
     kct.drop("GGGA")  # "GGGA" not present in the table
-    assert kct.get("GGGA") == 0 # "GGGA" not present in the table
-    
+    assert kct.get("GGGA") == 0  # "GGGA" not present in the table
+
     # Raise error if kmer longer than table k len.
     with pytest.raises(ValueError):
         kct.drop("GGGAA")  # "GGGAA" longer than table k
+
 
 def test_drop_hash(setup_kmer_table):
     """
@@ -56,7 +59,10 @@ def test_drop_hash(setup_kmer_table):
     # Edge case: Drop a hash that doesn't exist
     non_existent_hash = 999999999
     kct.drop_hash(non_existent_hash)  # Should not raise an error
-    assert kct.get_hash(non_existent_hash) == 0, "Expected non-existent hash removal to succeed."
+    assert (
+        kct.get_hash(non_existent_hash) == 0
+    ), "Expected non-existent hash removal to succeed."
+
 
 def test_mincut(setup_kmer_table):
     """
@@ -69,11 +75,12 @@ def test_mincut(setup_kmer_table):
     removed = kct.mincut(3)
     assert removed == 2, "Expected 2 k-mers to be removed ('ATAT' and 'AAAA/TTTT')."
     assert kct.get("GGGG") == 3, "Expected 'GGGG/CCCC' to remain."
-    
+
     # Edge case: Threshold is higher than all k-mer counts (remove everything)
     removed = kct.mincut(10)
     assert removed == 1, "Expected all remaining k-mers to be removed ('GGGG/CCCC')."
     assert len(kct.hashes) == 0, "Expected no k-mers left after removing all."
+
 
 def test_maxcut(setup_kmer_table):
     """
@@ -86,14 +93,20 @@ def test_maxcut(setup_kmer_table):
     removed = kct.maxcut(2)
     assert removed == 1, "Expected 'CCCC/GGGG' to be removed."
     assert kct.get("GGGG") == 0, "Expected 'CCCC/GGGG' to be removed."
-    assert kct.get("AAAA") == 2, "Should not remove kmers with exact maxcut value, only greater."
+    assert (
+        kct.get("AAAA") == 2
+    ), "Should not remove kmers with exact maxcut value, only greater."
 
     # Edge case: Threshold is higher than all k-mer counts (remove none)
     removed = kct.maxcut(10)
     assert removed == 0, "Expected no k-mers to be removed since all counts are < 10."
-    assert len(kct.hashes) == 2, "Expected 2 records with counts < 10 to remain in the table."
-    
+    assert (
+        len(kct.hashes) == 2
+    ), "Expected 2 records with counts < 10 to remain in the table."
+
     # Edge case: Threshold is lower than all k-mer counts (remove all)
     removed = kct.maxcut(0)
     assert removed == 2, "Expected no k-mers to be removed since all counts are > 0."
-    assert len(kct.hashes) == 0, "Expected 0 records with counts < 1 to remain in the table."
+    assert (
+        len(kct.hashes) == 0
+    ), "Expected 0 records with counts < 1 to remain in the table."
