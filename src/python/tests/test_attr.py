@@ -1,8 +1,13 @@
 import oxli
 import pytest
+import toml
+
+from pathlib import Path
 from test_basic import create_sample_kmer_table
 
+
 # Test attributes
+
 
 def test_hashes_attribute():
     table = create_sample_kmer_table(3, ["AAA", "TTT", "AAC"])
@@ -19,12 +24,34 @@ def test_hashes_attribute():
     ), ".hashes attribute should match the expected set of hash keys"
 
 
-def test_version_attr():
-    '''Check version attribute matches current version.'''
-    pass
+def get_version_from_cargo_toml():
+    # Path to Cargo.toml relative to the location of the test file
+    cargo_toml_path = Path(__file__).resolve().parents[3] / "Cargo.toml"
+
+    if not cargo_toml_path.exists():
+        raise FileNotFoundError(f"{cargo_toml_path} not found")
+
+    with cargo_toml_path.open("r") as f:
+        cargo_toml = toml.load(f)
+
+    return cargo_toml["package"]["version"]
+
+
+def test_kmer_count_table_version():
+    # Create an instance of KmerCountTable with a k-mer size
+    kmer_table = oxli.KmerCountTable(ksize=31)
+
+    # Get the expected version from Cargo.toml
+    expected_version = get_version_from_cargo_toml()
+
+    # Check if the version attribute matches the expected version
+    assert (
+        kmer_table.version == expected_version
+    ), f"Expected version {expected_version}, but got {kmer_table.version}"
+
 
 def test_total_consumed_seq_len_attr():
-    '''Should log total seq len consumed.'''
+    """Should log total seq len consumed."""
     # Individual kmers
     # Long seqs with multiple kmers
     # Exclude invalid kmers?
