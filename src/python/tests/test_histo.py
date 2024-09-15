@@ -10,41 +10,41 @@ def kmer_count_table():
 
 
 def test_min_empty_table(kmer_count_table):
-    """Test min() on an empty KmerCountTable.
+    """Test min on an empty KmerCountTable.
 
     Edge case: When the table is empty, min should return 0.
     """
-    assert kmer_count_table.min() == 0, "min() should return 0 for an empty table"
+    assert kmer_count_table.min == 0, "min should return 0 for an empty table"
 
 
 def test_max_empty_table(kmer_count_table):
-    """Test max() on an empty KmerCountTable.
+    """Test max on an empty KmerCountTable.
 
     Edge case: When the table is empty, max should return 0.
     """
-    assert kmer_count_table.max() == 0, "max() should return 0 for an empty table"
+    assert kmer_count_table.max == 0, "max should return 0 for an empty table"
 
 
 def test_min_non_empty_table(kmer_count_table):
-    """Test min() on a non-empty KmerCountTable."""
+    """Test min on a non-empty KmerCountTable."""
     kmer_count_table.count("AAAA")  # Adding 1 k-mer
     kmer_count_table.count("TTTT")  # Another k-mer with same hash (canonical k-mer)
     kmer_count_table.consume("CCCCCC")  # Count "CCCC" 3 times
 
     assert (
-        kmer_count_table.min() == 2
-    ), "min() should return the minimum count value, in this case 2"
+        kmer_count_table.min == 2
+    ), "min should return the minimum count value, in this case 2"
 
 
 def test_max_non_empty_table(kmer_count_table):
-    """Test max() on a non-empty KmerCountTable."""
+    """Test max on a non-empty KmerCountTable."""
     kmer_count_table.count("AAAA")  # Adding k-mers
     kmer_count_table.count("TTTT")  # Another k-mer with same hash (canonical k-mer)
     kmer_count_table.count("CCCC")  # Another distinct k-mer
 
     assert (
-        kmer_count_table.max() == 2
-    ), "max() should return the maximum count value, in this case 2"
+        kmer_count_table.max == 2
+    ), "max should return the maximum count value, in this case 2"
 
 
 def test_histo_zero_false_empty_table(kmer_count_table):

@@ -158,6 +158,7 @@ impl KmerCountTable {
 
     /// Finds and returns the minimum count in the counts HashMap.
     /// Returns 0 if the HashMap is empty.
+    #[getter]
     pub fn min(&self) -> u64 {
         // Check if the HashMap is empty, return 0 if true
         if self.counts.is_empty() {
@@ -170,6 +171,7 @@ impl KmerCountTable {
 
     /// Finds and returns the maximum count in the counts HashMap.
     /// Returns 0 if the HashMap is empty.
+    #[getter]
     pub fn max(&self) -> u64 {
         // Check if the HashMap is empty, return 0 if true
         if self.counts.is_empty() {
