@@ -9,6 +9,10 @@ use pyo3::prelude::*;
 use sourmash::encodings::HashFunctions;
 use sourmash::signature::SeqToHashes;
 
+use pyo3::PyResult;
+use std::fs::File;
+use std::io::{BufWriter, Write};
+
 #[pyclass]
 struct KmerCountTable {
     counts: HashMap<u64, u64>,
@@ -119,10 +123,53 @@ impl KmerCountTable {
     // Default sort by count
     // Option sort kmers lexicographically
 
-    // TODO: Add method "dump_hash"
-    // Output tab delimited hash:count pairs
-    // Default sort by count
-    // Option sort on keys
+    /// Dump hash:count pairs, sorted by count (default) or by hash key.
+    ///
+    /// # Arguments
+    /// * `file` - Optional file path to write the output. If not provided, returns a list of tuples.
+    /// * `sortkeys` - Optional flag to sort by hash keys (default: False).
+    ///
+    /// By default, the records are sorted by count in ascending order. If two records have the same
+    /// count value, they are sorted by the hash value. If `sortkeys` is set to `True`, sorting is done
+    /// by the hash key instead.
+    #[pyo3(signature = (file=None, sortkeys=false))]
+    pub fn dump_hashes(&self, file: Option<String>, sortkeys: bool) -> PyResult<Vec<(u64, u64)>> {
+        let mut hash_count_pairs: Vec<(&u64, &u64)> = self.counts.iter().collect();
+
+        // Sort by count, with secondary sort by hash (default behavior)
+        if sortkeys {
+            // Sort by hash keys if `sortkeys` is set to true
+            hash_count_pairs.sort_by_key(|&(hash, _)| *hash);
+        } else {
+            // Default sorting by count, secondary sort by hash
+            hash_count_pairs.sort_by(|&(hash1, count1), &(hash2, count2)| {
+                count1.cmp(count2).then_with(|| hash1.cmp(hash2))
+            });
+        }
+
+        // If a file is provided, write to the file
+        if let Some(filepath) = file {
+            let f = File::create(filepath)?;
+            let mut writer = BufWriter::new(f);
+
+            // Write each hash:count pair to the file
+            for (hash, count) in hash_count_pairs {
+                writeln!(writer, "{}\t{}", hash, count)?;
+            }
+
+            writer.flush()?; // Flush the buffer
+            Ok(vec![]) // Return empty vector to Python
+        } else {
+            // Convert the vector of references to owned values
+            let result: Vec<(u64, u64)> = hash_count_pairs
+                .into_iter()
+                .map(|(&hash, &count)| (hash, count))
+                .collect();
+
+            // Return the vector of (hash, count) tuples
+            Ok(result)
+        }
+    }
 
     // TODO: Add method "histo"
     // Output frequency counts
