@@ -659,8 +659,11 @@ version = "0.2.3"
 dependencies = [
  "anyhow",
  "env_logger",
+ "flate2",
  "log",
  "pyo3",
+ "serde",
+ "serde_json",
  "sourmash",
 ]
 
