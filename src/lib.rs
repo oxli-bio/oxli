@@ -1,6 +1,6 @@
 // Standard library imports
-use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::IntoIter;
+use std::collections::{HashMap, HashSet};
 
 // External crate imports
 use anyhow::{anyhow, Result};
