@@ -1,5 +1,6 @@
 // Standard library imports
 use std::collections::{HashMap, HashSet};
+use std::collections::hash_map::IntoIter;
 
 // External crate imports
 use anyhow::{anyhow, Result};
@@ -70,10 +71,9 @@ impl KmerCountTable {
                 "kmer size does not match count table ksize",
             ))
         } else {
-            let hashval = self.hash_kmer(kmer.clone()).unwrap();
-            let count = self.count_hash(hashval);
-            // Update the total sequence length tracker
             self.consumed += kmer.len() as u64;
+            let hashval = self.hash_kmer(kmer)?;
+            let count = self.count_hash(hashval);
             Ok(count)
         }
     }
@@ -275,7 +275,7 @@ impl KmerCountTable {
 // Iterator implementation for KmerCountTable
 #[pyclass]
 pub struct KmerCountTableIterator {
-    inner: std::collections::hash_map::IntoIter<u64, u64>, // Now we own the iterator
+    inner: IntoIter<u64, u64>, // Now we own the iterator
 }
 
 #[pymethods]
