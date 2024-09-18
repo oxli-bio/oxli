@@ -387,6 +387,10 @@ impl KmerCountTable {
         self.counts.insert(hashval, count);
         Ok(())
     }
+
+    pub fn kmers_and_hashes(&self, seq: String, allow_bad_kmers: bool) -> PyResult<Vec<(String, u64)>> {
+        Ok(vec![])
+    }
 }
 
 // Iterator implementation for KmerCountTable
