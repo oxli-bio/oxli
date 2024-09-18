@@ -1,4 +1,5 @@
 // Standard library imports
+use std::collections::hash_map::IntoIter;
 use std::collections::{HashMap, HashSet};
 
 // External crate imports
@@ -13,10 +14,15 @@ use pyo3::PyResult;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 
+// Set version variable
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 #[pyclass]
 struct KmerCountTable {
     counts: HashMap<u64, u64>,
     pub ksize: u8,
+    version: String,
+    consumed: u64,
 }
 
 #[pymethods]
@@ -27,6 +33,8 @@ impl KmerCountTable {
         Self {
             counts: HashMap::new(),
             ksize,
+            version: VERSION.to_string(), // Initialize the version field
+            consumed: 0,                  // Initialize the total sequence length tracker
         }
     }
 
@@ -67,7 +75,8 @@ impl KmerCountTable {
                 "kmer size does not match count table ksize",
             ))
         } else {
-            let hashval = self.hash_kmer(kmer).unwrap();
+            self.consumed += kmer.len() as u64;
+            let hashval = self.hash_kmer(kmer)?;
             let count = self.count_hash(hashval);
             Ok(count)
         }
@@ -102,15 +111,77 @@ impl KmerCountTable {
         hash_keys.iter().map(|&key| self.get_hash(key)).collect()
     }
 
-    // TODO: Add method "drop"
-    // remove kmer from table
+    /// Drop a k-mer from the count table by its string representation
+    pub fn drop(&mut self, kmer: String) -> PyResult<()> {
+        // Compute the hash of the k-mer using the same method used for counting
+        let hashval = self.hash_kmer(kmer)?;
+        // Attempt to remove the k-mer's hash from the counts HashMap
+        if self.counts.remove(&hashval).is_some() {
+            // If the k-mer was successfully removed, return Ok
+            debug!("K-mer with hashval {} removed from table", hashval);
+            Ok(())
+        } else {
+            // If the k-mer was not found, return Ok without an error
+            debug!("K-mer with hashval {} not found in table", hashval);
+            Ok(())
+        }
+    }
 
-    // TODO: Add method "drop_hash"
-    // remove hash from table
+    /// Drop a k-mer from the count table by its hash value
+    pub fn drop_hash(&mut self, hashval: u64) -> PyResult<()> {
+        // Attempt to remove the hash value from the counts HashMap
+        if self.counts.remove(&hashval).is_some() {
+            // If the hash value was successfully removed, log and return Ok
+            debug!("Hash value {} removed from table", hashval);
+            Ok(())
+        } else {
+            // If the hash value was not found, log and return Ok without error
+            debug!("Hash value {} not found in table", hashval);
+            Ok(())
+        }
+    }
 
-    // TODO: Add "mincut". Remove counts below a minimum cutoff.
+    /// Remove all k-mers with counts less than a given threshold
+    pub fn mincut(&mut self, min_count: u64) -> PyResult<u64> {
+        // Create a vector to store the keys (hashes) to be removed
+        let mut to_remove = Vec::new();
 
-    // TODO: Add "maxcut". Remove counts above an maximum cutoff.
+        // Iterate over the HashMap and identify keys with counts less than the threshold
+        for (&hash, &count) in self.counts.iter() {
+            if count < min_count {
+                to_remove.push(hash);
+            }
+        }
+
+        // Remove the identified keys from the counts HashMap
+        for &hash in &to_remove {
+            self.counts.remove(&hash);
+        }
+
+        // Return the number of k-mers removed
+        Ok(to_remove.len() as u64)
+    }
+
+    /// Remove all k-mers with counts greater than a given threshold
+    pub fn maxcut(&mut self, max_count: u64) -> PyResult<u64> {
+        // Create a vector to store the keys (hashes) to be removed
+        let mut to_remove = Vec::new();
+
+        // Iterate over the HashMap and identify keys with counts greater than the threshold
+        for (&hash, &count) in self.counts.iter() {
+            if count > max_count {
+                to_remove.push(hash);
+            }
+        }
+
+        // Remove the identified keys from the counts HashMap
+        for &hash in &to_remove {
+            self.counts.remove(&hash);
+        }
+
+        // Return the number of k-mers removed
+        Ok(to_remove.len() as u64)
+    }
 
     // TODO: Serialize the KmerCountTable instance to a JSON string.
 
@@ -171,8 +242,63 @@ impl KmerCountTable {
         }
     }
 
-    // TODO: Add method "histo"
-    // Output frequency counts
+    /// Calculates the frequency histogram for k-mer counts
+    /// Returns a vector of tuples (frequency, count), where 'frequency' is
+    /// the observed number of times a k-mer count occurred and 'count' is
+    /// how many different k-mers have that frequency.
+    /// If `zero` is True, include all frequencies from 0 to max observed count,
+    /// even if no k-mers were observed for those frequencies.
+    #[pyo3(signature = (zero=true))]
+    pub fn histo(&self, zero: bool) -> Vec<(u64, u64)> {
+        let mut freq_count: HashMap<u64, u64> = HashMap::new();
+
+        // Step 1: Count the frequencies of observed k-mer counts
+        for &count in self.counts.values() {
+            *freq_count.entry(count).or_insert(0) += 1;
+        }
+
+        let mut histo_vec: Vec<(u64, u64)>;
+
+        if zero {
+            // Step 2 (optional): Include all frequencies from 0 to max_count
+            let max_count = self.max();
+            histo_vec = (0..=max_count)
+                .map(|freq| (freq, *freq_count.get(&freq).unwrap_or(&0)))
+                .collect();
+        } else {
+            // Step 2: Only include observed frequencies
+            histo_vec = freq_count.into_iter().collect();
+            histo_vec.sort_by_key(|&(frequency, _)| frequency);
+        }
+
+        histo_vec
+    }
+
+    /// Finds and returns the minimum count in the counts HashMap.
+    /// Returns 0 if the HashMap is empty.
+    #[getter]
+    pub fn min(&self) -> u64 {
+        // Check if the HashMap is empty, return 0 if true
+        if self.counts.is_empty() {
+            return 0;
+        }
+
+        // Iterate over the counts and find the minimum value
+        *self.counts.values().min().unwrap_or(&0)
+    }
+
+    /// Finds and returns the maximum count in the counts HashMap.
+    /// Returns 0 if the HashMap is empty.
+    #[getter]
+    pub fn max(&self) -> u64 {
+        // Check if the HashMap is empty, return 0 if true
+        if self.counts.is_empty() {
+            return 0;
+        }
+
+        // Iterate over the counts and find the maximum value
+        *self.counts.values().max().unwrap_or(&0)
+    }
 
     // Getter for the 'hashes' attribute, returning all hash keys in the table
     #[getter]
@@ -181,11 +307,23 @@ impl KmerCountTable {
         self.counts.keys().cloned().collect()
     }
 
-    // TODO: Getter for the version attribute
-    // Store oxli version when instance is created
+    // Attribute to access the version of oxli that the table was created with
+    #[getter]
+    pub fn version(&self) -> &str {
+        &self.version
+    }
 
-    // TODO: Getter for the consumed seq len attribute
-    // Update tracker when DNA is processed with count() or consume()
+    // Attribute to access the total bases processed with count or consume.
+    #[getter]
+    pub fn consumed(&self) -> u64 {
+        self.consumed
+    }
+
+    // Getter for the sum of all counts in the table.
+    #[getter]
+    pub fn sum_counts(&self) -> u64 {
+        self.counts.values().sum()
+    }
 
     // Consume this DNA string. Return number of k-mers consumed.
     #[pyo3(signature = (seq, allow_bad_kmers=true))]
@@ -216,6 +354,9 @@ impl KmerCountTable {
 
             n += 1;
         }
+
+        // Update the total sequence consumed tracker
+        self.consumed += seq.len() as u64;
 
         Ok(n)
     }
@@ -268,15 +409,44 @@ impl KmerCountTable {
         self.symmetric_difference(other)
     }
 
-    // Python dunder method for __iter__
-
-    // Python dunder method for __next__
+    // Python __iter__ method to return an iterator
+    pub fn __iter__(slf: PyRef<Self>) -> KmerCountTableIterator {
+        KmerCountTableIterator {
+            inner: slf.counts.clone().into_iter(), // Clone the HashMap and convert to iterator
+        }
+    }
 
     // Python dunder method for __len__
+    fn __len__(&self) -> usize {
+        self.counts.len()
+    }
 
     // Python dunder method for __getitem__
+    fn __getitem__(&self, kmer: String) -> PyResult<u64> {
+        self.get(kmer)
+    }
 
     // Python dunder method for __setitem__
+    pub fn __setitem__(&mut self, kmer: String, count: u64) -> PyResult<()> {
+        // Calculate the hash for the k-mer
+        let hashval = self.hash_kmer(kmer)?;
+        // Set the count for the k-mer
+        self.counts.insert(hashval, count);
+        Ok(())
+    }
+}
+
+// Iterator implementation for KmerCountTable
+#[pyclass]
+pub struct KmerCountTableIterator {
+    inner: IntoIter<u64, u64>, // Now we own the iterator
+}
+
+#[pymethods]
+impl KmerCountTableIterator {
+    pub fn __next__(mut slf: PyRefMut<Self>) -> Option<(u64, u64)> {
+        slf.inner.next()
+    }
 }
 
 // Python module definition
