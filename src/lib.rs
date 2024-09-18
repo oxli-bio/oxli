@@ -1,4 +1,5 @@
 // Standard library imports
+use std::collections::hash_map::IntoIter;
 use std::collections::{HashMap, HashSet};
 
 // External crate imports
@@ -9,10 +10,15 @@ use pyo3::prelude::*;
 use sourmash::encodings::HashFunctions;
 use sourmash::signature::SeqToHashes;
 
+// Set version variable
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 #[pyclass]
 struct KmerCountTable {
     counts: HashMap<u64, u64>,
     pub ksize: u8,
+    version: String,
+    consumed: u64,
 }
 
 #[pymethods]
@@ -23,6 +29,8 @@ impl KmerCountTable {
         Self {
             counts: HashMap::new(),
             ksize,
+            version: VERSION.to_string(), // Initialize the version field
+            consumed: 0,                  // Initialize the total sequence length tracker
         }
     }
 
@@ -63,7 +71,8 @@ impl KmerCountTable {
                 "kmer size does not match count table ksize",
             ))
         } else {
-            let hashval = self.hash_kmer(kmer).unwrap();
+            self.consumed += kmer.len() as u64;
+            let hashval = self.hash_kmer(kmer)?;
             let count = self.count_hash(hashval);
             Ok(count)
         }
@@ -251,11 +260,23 @@ impl KmerCountTable {
         self.counts.keys().cloned().collect()
     }
 
-    // TODO: Getter for the version attribute
-    // Store oxli version when instance is created
+    // Attribute to access the version of oxli that the table was created with
+    #[getter]
+    pub fn version(&self) -> &str {
+        &self.version
+    }
 
-    // TODO: Getter for the consumed seq len attribute
-    // Update tracker when DNA is processed with count() or consume()
+    // Attribute to access the total bases processed with count or consume.
+    #[getter]
+    pub fn consumed(&self) -> u64 {
+        self.consumed
+    }
+
+    // Getter for the sum of all counts in the table.
+    #[getter]
+    pub fn sum_counts(&self) -> u64 {
+        self.counts.values().sum()
+    }
 
     // Consume this DNA string. Return number of k-mers consumed.
     #[pyo3(signature = (seq, allow_bad_kmers=true))]
@@ -286,6 +307,9 @@ impl KmerCountTable {
 
             n += 1;
         }
+
+        // Update the total sequence consumed tracker
+        self.consumed += seq.len() as u64;
 
         Ok(n)
     }
@@ -338,15 +362,44 @@ impl KmerCountTable {
         self.symmetric_difference(other)
     }
 
-    // Python dunder method for __iter__
-
-    // Python dunder method for __next__
+    // Python __iter__ method to return an iterator
+    pub fn __iter__(slf: PyRef<Self>) -> KmerCountTableIterator {
+        KmerCountTableIterator {
+            inner: slf.counts.clone().into_iter(), // Clone the HashMap and convert to iterator
+        }
+    }
 
     // Python dunder method for __len__
+    fn __len__(&self) -> usize {
+        self.counts.len()
+    }
 
     // Python dunder method for __getitem__
+    fn __getitem__(&self, kmer: String) -> PyResult<u64> {
+        self.get(kmer)
+    }
 
     // Python dunder method for __setitem__
+    pub fn __setitem__(&mut self, kmer: String, count: u64) -> PyResult<()> {
+        // Calculate the hash for the k-mer
+        let hashval = self.hash_kmer(kmer)?;
+        // Set the count for the k-mer
+        self.counts.insert(hashval, count);
+        Ok(())
+    }
+}
+
+// Iterator implementation for KmerCountTable
+#[pyclass]
+pub struct KmerCountTableIterator {
+    inner: IntoIter<u64, u64>, // Now we own the iterator
+}
+
+#[pymethods]
+impl KmerCountTableIterator {
+    pub fn __next__(mut slf: PyRefMut<Self>) -> Option<(u64, u64)> {
+        slf.inner.next()
+    }
 }
 
 // Python module definition
