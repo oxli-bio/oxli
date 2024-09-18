@@ -186,8 +186,63 @@ impl KmerCountTable {
     // Default sort by count
     // Option sort on keys
 
-    // TODO: Add method "histo"
-    // Output frequency counts
+    /// Calculates the frequency histogram for k-mer counts
+    /// Returns a vector of tuples (frequency, count), where 'frequency' is
+    /// the observed number of times a k-mer count occurred and 'count' is
+    /// how many different k-mers have that frequency.
+    /// If `zero` is True, include all frequencies from 0 to max observed count,
+    /// even if no k-mers were observed for those frequencies.
+    #[pyo3(signature = (zero=true))]
+    pub fn histo(&self, zero: bool) -> Vec<(u64, u64)> {
+        let mut freq_count: HashMap<u64, u64> = HashMap::new();
+
+        // Step 1: Count the frequencies of observed k-mer counts
+        for &count in self.counts.values() {
+            *freq_count.entry(count).or_insert(0) += 1;
+        }
+
+        let mut histo_vec: Vec<(u64, u64)>;
+
+        if zero {
+            // Step 2 (optional): Include all frequencies from 0 to max_count
+            let max_count = self.max();
+            histo_vec = (0..=max_count)
+                .map(|freq| (freq, *freq_count.get(&freq).unwrap_or(&0)))
+                .collect();
+        } else {
+            // Step 2: Only include observed frequencies
+            histo_vec = freq_count.into_iter().collect();
+            histo_vec.sort_by_key(|&(frequency, _)| frequency);
+        }
+
+        histo_vec
+    }
+
+    /// Finds and returns the minimum count in the counts HashMap.
+    /// Returns 0 if the HashMap is empty.
+    #[getter]
+    pub fn min(&self) -> u64 {
+        // Check if the HashMap is empty, return 0 if true
+        if self.counts.is_empty() {
+            return 0;
+        }
+
+        // Iterate over the counts and find the minimum value
+        *self.counts.values().min().unwrap_or(&0)
+    }
+
+    /// Finds and returns the maximum count in the counts HashMap.
+    /// Returns 0 if the HashMap is empty.
+    #[getter]
+    pub fn max(&self) -> u64 {
+        // Check if the HashMap is empty, return 0 if true
+        if self.counts.is_empty() {
+            return 0;
+        }
+
+        // Iterate over the counts and find the maximum value
+        *self.counts.values().max().unwrap_or(&0)
+    }
 
     // Getter for the 'hashes' attribute, returning all hash keys in the table
     #[getter]
