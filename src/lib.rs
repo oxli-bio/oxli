@@ -7,7 +7,7 @@ use anyhow::{anyhow, Result};
 use log::debug;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use sourmash::encodings::HashFunctions;
+use sourmash::encodings::{revcomp, HashFunctions};
 use sourmash::signature::SeqToHashes;
 
 // Set version variable
@@ -388,8 +388,50 @@ impl KmerCountTable {
         Ok(())
     }
 
-    pub fn kmers_and_hashes(&self, seq: String, allow_bad_kmers: bool) -> PyResult<Vec<(String, u64)>> {
-        Ok(vec![])
+    pub fn kmers_and_hashes(
+        &self,
+        seq: String,
+        allow_bad_kmers: bool,
+    ) -> PyResult<Vec<(String, u64)>> {
+        let seqb = seq.as_bytes();
+        let mut hasher = SeqToHashes::new(
+            seqb,
+            self.ksize.into(),
+            allow_bad_kmers,
+            false,
+            HashFunctions::Murmur64Dna,
+            42,
+        );
+
+        let ksize = self.ksize as usize;
+        let end: usize = seq.len() - ksize + 1;
+
+        let mut v: Vec<(String, u64)> = vec![];
+        for start in 0..end {
+            let substr = &seq[start..start + ksize];
+            let hashval = hasher.next().unwrap().unwrap();
+            v.push((substr.to_string(), hashval));
+        }
+        /*
+                let seqb_rc = revcomp(&seqb);
+                let seq_rc = String::from_utf8(seqb_rc.clone()).unwrap();
+
+                let mut hasher = SeqToHashes::new(
+                    &seqb_rc,
+                    self.ksize.into(),
+                    allow_bad_kmers,
+                    false,
+                    HashFunctions::Murmur64Dna,
+                    42,
+                );
+                for start in 0..end {
+                    let substr = &seq_rc[start..start + ksize];
+                    let hashval = hasher.next().unwrap().unwrap();
+                    v.push((substr.to_string(), hashval));
+            }
+        */
+
+        Ok(v)
     }
 }
 
