@@ -100,26 +100,17 @@ impl KmerCountTable {
 
     /// Drop a k-mer from the count table by its string representation
     pub fn drop(&mut self, kmer: String) -> PyResult<()> {
-        // Ensure that the k-mer length matches the table's ksize
-        if kmer.len() as u8 != self.ksize {
-            // Return an error if the lengths do not match
-            Err(PyValueError::new_err(
-                "kmer size does not match count table ksize",
-            ))
+        // Compute the hash of the k-mer using the same method used for counting
+        let hashval = self.hash_kmer(kmer)?;
+        // Attempt to remove the k-mer's hash from the counts HashMap
+        if self.counts.remove(&hashval).is_some() {
+            // If the k-mer was successfully removed, return Ok
+            debug!("K-mer with hashval {} removed from table", hashval);
+            Ok(())
         } else {
-            // Compute the hash of the k-mer using the same method used for counting
-            let hashval = self.hash_kmer(kmer).unwrap();
-
-            // Attempt to remove the k-mer's hash from the counts HashMap
-            if self.counts.remove(&hashval).is_some() {
-                // If the k-mer was successfully removed, return Ok
-                debug!("K-mer with hashval {} removed from table", hashval);
-                Ok(())
-            } else {
-                // If the k-mer was not found, return Ok without an error
-                debug!("K-mer with hashval {} not found in table", hashval);
-                Ok(())
-            }
+            // If the k-mer was not found, return Ok without an error
+            debug!("K-mer with hashval {} not found in table", hashval);
+            Ok(())
         }
     }
 

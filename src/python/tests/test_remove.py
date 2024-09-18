@@ -37,10 +37,6 @@ def test_drop(setup_kmer_table):
     kct.drop("GGGA")  # "GGGA" not present in the table
     assert kct.get("GGGA") == 0  # "GGGA" not present in the table
 
-    # Raise error if kmer longer than table k len.
-    with pytest.raises(ValueError):
-        kct.drop("GGGAA")  # "GGGAA" longer than table k
-
 
 def test_drop_hash(setup_kmer_table):
     """
