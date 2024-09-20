@@ -1,23 +1,21 @@
 // Standard library imports
-use std::collections::hash_map::IntoIter;
 use std::collections::{HashMap, HashSet};
+use std::collections::hash_map::IntoIter;
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io;
+use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::Path;
 
 // External crate imports
 use anyhow::{anyhow, Result};
 use log::debug;
+use niffler::{self, Compression, Format};
 use pyo3::exceptions::{PyIOError, PyValueError};
 use pyo3::prelude::*;
+use pyo3::PyResult;
+use serde::{Deserialize, Serialize};
 use sourmash::encodings::HashFunctions;
 use sourmash::signature::SeqToHashes;
-
-use flate2::read::GzDecoder;
-use flate2::write::GzEncoder;
-use flate2::Compression;
-use serde::{Deserialize, Serialize};
-use std::io;
 
 // Set version variable
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -243,15 +241,64 @@ impl KmerCountTable {
         Ok(loaded_table)
     }
 
-    // TODO: Add method "dump"
-    // Output tab delimited kmer:count pairs
-    // Default sort by count
-    // Option sort kmers lexicographically
+    /// Dump (hash,count) pairs, optional sorted by count or hash key.
+    ///
+    /// # Arguments
+    /// * `file` - Optional file path to write the output. If not provided, returns a list of tuples.
+    /// * `sortkeys` - Optional flag to sort by hash keys (default: False).
+    /// * `sortcounts` - Sort on counts, secondary sort on keys. (default: False).
+    #[pyo3(signature = (file=None, sortcounts=false, sortkeys=false))]
+    pub fn dump(
+        &self,
+        file: Option<String>,
+        sortcounts: bool,
+        sortkeys: bool,
+    ) -> PyResult<Vec<(u64, u64)>> {
+        // Raise an error if both sortcounts and sortkeys are true
+        if sortcounts && sortkeys {
+            return Err(PyValueError::new_err(
+                "Cannot sort by both counts and keys at the same time.",
+            ));
+        }
 
-    // TODO: Add method "dump_hash"
-    // Output tab delimited hash:count pairs
-    // Default sort by count
-    // Option sort on keys
+        // Collect hashes and counts
+        let mut hash_count_pairs: Vec<(&u64, &u64)> = self.counts.iter().collect();
+
+        // Handle sorting based on the flags
+        if sortkeys {
+            // Sort by hash keys if `sortkeys` is set to true
+            hash_count_pairs.sort_by_key(|&(hash, _)| *hash);
+        } else if sortcounts {
+            // Sort by count, secondary sort by hash if `sortcounts` is true
+            hash_count_pairs.sort_by(|&(hash1, count1), &(hash2, count2)| {
+                count1.cmp(count2).then_with(|| hash1.cmp(hash2))
+            });
+        }
+        // If both sortcounts and sortkeys are false, no sorting is done.
+
+        // If a file is provided, write to the file
+        if let Some(filepath) = file {
+            let f = File::create(filepath)?;
+            let mut writer = BufWriter::new(f);
+
+            // Write each hash:count pair to the file
+            for (hash, count) in hash_count_pairs {
+                writeln!(writer, "{}\t{}", hash, count)?;
+            }
+
+            writer.flush()?; // Flush the buffer
+            Ok(vec![]) // Return empty vector to Python
+        } else {
+            // Convert the vector of references to owned values
+            let result: Vec<(u64, u64)> = hash_count_pairs
+                .into_iter()
+                .map(|(&hash, &count)| (hash, count))
+                .collect();
+
+            // Return the vector of (hash, count) tuples
+            Ok(result)
+        }
+    }
 
     /// Calculates the frequency histogram for k-mer counts
     /// Returns a vector of tuples (frequency, count), where 'frequency' is

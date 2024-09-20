@@ -22,7 +22,7 @@ This will install the oxli library. Right now there is only
 You can also try building it yourself and using it in development mode:
 ```
 mamba env create -f environment.yml -n oxli
-pip install -e .
+pip install -e '.[test]'
 ```
 
 ## Documentation
