@@ -9,6 +9,7 @@ from test_attr import get_version_from_cargo_toml
 
 CURRENT_VERSION = get_version_from_cargo_toml()
 
+
 @pytest.fixture
 def sample_kmer_table():
     """Fixture that provides a sample KmerCountTable object."""
@@ -17,18 +18,20 @@ def sample_kmer_table():
     table.count("TTTT")
     return table
 
+
 @pytest.fixture
 def temp_file():
     """Fixture that provides a temporary file path for testing."""
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.json.gz') as temp:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".json.gz") as temp:
         yield temp.name
     # Remove the file after the test is done
     remove(temp.name)
 
+
 def test_serialize_json(sample_kmer_table):
     """
     Test case for the `serialize_json` function.
-    
+
     This test verifies that the `serialize_json` function correctly serializes a
     KmerCountTable object into a JSON string.
     """
@@ -41,7 +44,10 @@ def test_serialize_json(sample_kmer_table):
     # Check that essential attributes exist
     assert "counts" in json_dict, "Counts should be serialized."
     assert json_dict["ksize"] == 4, "Ksize should be correctly serialized."
-    assert sample_kmer_table.version == json_dict["version"], "Version should be serialized."
+    assert (
+        sample_kmer_table.version == json_dict["version"]
+    ), "Version should be serialized."
+
 
 def test_save_load_roundtrip(sample_kmer_table, temp_file):
     """
@@ -57,10 +63,15 @@ def test_save_load_roundtrip(sample_kmer_table, temp_file):
     loaded_table = KmerCountTable.load(temp_file)
 
     # Verify that the loaded data matches the original
-    assert loaded_table.get("AAAA") == sample_kmer_table.get("AAAA"), "Counts should be preserved after loading."
-    assert loaded_table.get("TTTT") == sample_kmer_table.get("TTTT"), "Counts for reverse complement should be preserved."
+    assert loaded_table.get("AAAA") == sample_kmer_table.get(
+        "AAAA"
+    ), "Counts should be preserved after loading."
+    assert loaded_table.get("TTTT") == sample_kmer_table.get(
+        "TTTT"
+    ), "Counts for reverse complement should be preserved."
     assert list(loaded_table) == list(sample_kmer_table), "All records in same order."
-    
+
+
 def test_version_warning_on_load_stderr(sample_kmer_table, temp_file, capfd):
     """
     Test that a warning is issued if the loaded object's version is different from the current Oxli version.
@@ -72,7 +83,7 @@ def test_version_warning_on_load_stderr(sample_kmer_table, temp_file, capfd):
 
     # Mock the current version to simulate a version mismatch
     mock_json = sample_kmer_table.serialize_json().replace(CURRENT_VERSION, "0.0.1")
-    with gzip.open(temp_file, 'wt') as f:
+    with gzip.open(temp_file, "wt") as f:
         json.dump(json.loads(mock_json), f)
 
     # Capture stderr output
@@ -81,4 +92,7 @@ def test_version_warning_on_load_stderr(sample_kmer_table, temp_file, capfd):
 
     # Check stderr for the version mismatch warning
     assert "Version mismatch" in captured.err
-    assert f"loaded version is 0.0.1, but current version is {CURRENT_VERSION}" in captured.err
+    assert (
+        f"loaded version is 0.0.1, but current version is {CURRENT_VERSION}"
+        in captured.err
+    )
