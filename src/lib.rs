@@ -1,28 +1,23 @@
 // Standard library imports
 use std::collections::hash_map::IntoIter;
 use std::collections::{HashMap, HashSet};
+use std::fs::File;
+use std::io::{BufWriter, Write};
 
 // External crate imports
 use anyhow::{anyhow, Result};
 use log::debug;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::PyResult;
 // use rayon::prelude::*;
-
-use anyhow::{anyhow, Result};
-use std::collections::HashMap;
+//use sourmash::_hash_murmur;
+use sourmash::encodings::HashFunctions;
+// use sourmash::sketch::nodegraph::Nodegraph;
+use sourmash::signature::SeqToHashes;
 
 extern crate needletail;
 use needletail::{parse_fastx_file, FastxReader, Sequence};
-
-// use sourmash::sketch::nodegraph::Nodegraph;
-use sourmash::_hash_murmur;
-use sourmash::encodings::HashFunctions;
-use sourmash::signature::SeqToHashes;
-
-use pyo3::PyResult;
-use std::fs::File;
-use std::io::{BufWriter, Write};
 
 // Set version variable
 const VERSION: &str = env!("CARGO_PKG_VERSION");
