@@ -4,18 +4,36 @@ build-backend = "maturin"
 
 [project]
 name = "oxli"
-description = "k-mer tools"
+description = "oxli is a Rust library + Python interface for counting k-mers in genomic sequencing data."
+
+authors = [
+    { name="C. Titus Brown", orcid="0000-0001-6001-2677" },
+    { name="Adam Taranto", orcid="0000-0003-4759-3475" },
+]
+
+maintainers = [
+    { name="C. Titus Brown", email="ctbrown@ucdavis.edu", orcid="0000-0001-6001-2677" },
+]
+
 readme = "README.md"
+
 requires-python = ">=3.10"
+
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
+
 dynamic = ["version"]
+
+license = { file = "LICENSE" }
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
 
-[metadata]
-license = { file = "LICENSE" }
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0",
+    "toml>=0.10"
+]

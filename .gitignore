@@ -2,6 +2,12 @@
 
 /target
 
+# Dev files
+/dev
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 .pytest_cache/
