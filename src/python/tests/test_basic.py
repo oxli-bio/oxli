@@ -164,6 +164,7 @@ def test_get_hash_array():
     ), "Hash array counts should match the counts of 'AAA' and 'AAC' and return zero for 'GGG'."
     assert rev_counts == [0, 1, 2], "Count should be in same order as input list"
 
+
 def test_get_array():
     """
     Get vector of counts corresponding to vector of kmers.

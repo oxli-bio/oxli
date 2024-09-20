@@ -3,6 +3,7 @@ import pytest
 
 from test_basic import create_sample_kmer_table
 
+
 # Set operations
 def test_union():
     table1 = create_sample_kmer_table(3, ["AAA", "AAC"])
