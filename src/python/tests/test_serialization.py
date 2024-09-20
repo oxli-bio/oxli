@@ -1,7 +1,7 @@
 import gzip
 import json
-import tempfile
 import pytest
+import tempfile
 
 from oxli import KmerCountTable
 from os import remove
