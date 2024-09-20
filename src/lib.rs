@@ -189,34 +189,40 @@ impl KmerCountTable {
 
     // TODO: Static method to load KmerCountTable from serialized JSON. Yield new object.
 
-    // TODO: Add method "dump"
-    // Output tab delimited kmer:count pairs
-    // Default sort by count
-    // Option sort kmers lexicographically
-
-    /// Dump hash:count pairs, sorted by count (default) or by hash key.
+    /// Dump (hash,count) pairs, optional sorted by count or hash key.
     ///
     /// # Arguments
     /// * `file` - Optional file path to write the output. If not provided, returns a list of tuples.
     /// * `sortkeys` - Optional flag to sort by hash keys (default: False).
-    ///
-    /// By default, the records are sorted by count in ascending order. If two records have the same
-    /// count value, they are sorted by the hash value. If `sortkeys` is set to `True`, sorting is done
-    /// by the hash key instead.
-    #[pyo3(signature = (file=None, sortkeys=false))]
-    pub fn dump_hashes(&self, file: Option<String>, sortkeys: bool) -> PyResult<Vec<(u64, u64)>> {
+    /// * `sortcounts` - Sort on counts, secondary sort on keys. (default: False).
+    #[pyo3(signature = (file=None, sortcounts=false, sortkeys=false))]
+    pub fn dump(
+        &self,
+        file: Option<String>,
+        sortcounts: bool,
+        sortkeys: bool,
+    ) -> PyResult<Vec<(u64, u64)>> {
+        // Raise an error if both sortcounts and sortkeys are true
+        if sortcounts && sortkeys {
+            return Err(PyValueError::new_err(
+                "Cannot sort by both counts and keys at the same time.",
+            ));
+        }
+
+        // Collect hashes and counts
         let mut hash_count_pairs: Vec<(&u64, &u64)> = self.counts.iter().collect();
 
-        // Sort by count, with secondary sort by hash (default behavior)
+        // Handle sorting based on the flags
         if sortkeys {
             // Sort by hash keys if `sortkeys` is set to true
             hash_count_pairs.sort_by_key(|&(hash, _)| *hash);
-        } else {
-            // Default sorting by count, secondary sort by hash
+        } else if sortcounts {
+            // Sort by count, secondary sort by hash if `sortcounts` is true
             hash_count_pairs.sort_by(|&(hash1, count1), &(hash2, count2)| {
                 count1.cmp(count2).then_with(|| hash1.cmp(hash2))
             });
         }
+        // If both sortcounts and sortkeys are false, no sorting is done.
 
         // If a file is provided, write to the file
         if let Some(filepath) = file {
