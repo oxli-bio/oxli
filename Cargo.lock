@@ -693,9 +693,9 @@ name = "oxli"
 version = "0.2.3"
 dependencies = [
  "anyhow",
- "needletail",
  "env_logger",
  "log",
+ "needletail",
  "pyo3",
  "sourmash",
 ]
