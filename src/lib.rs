@@ -441,13 +441,26 @@ impl KmerCountTable {
         Ok(())
     }
 
-    // Jaccard
+    /// Calculates the Jaccard Similarity Coefficient between two KmerCountTable objects.
+    /// # Returns
+    /// The Jaccard Similarity Coefficient between the two tables as a float value between 0 and 1.
+    pub fn jaccard(&self, other: &KmerCountTable) -> f64 {
+        // Get the intersection of the two k-mer sets.
+        let intersection_size = self.intersection(other).len();
+
+        // Get the union of the two k-mer sets.
+        let union_size = self.union(other).len();
+
+        // Handle the case where the union is empty (both sets are empty).
+        if union_size == 0 {
+            return 1.0; // By convention, two empty sets are considered identical.
+        }
+
+        // Calculate and return the Jaccard similarity as a ratio of intersection to union.
+        intersection_size as f64 / union_size as f64
+    }
 
     /// Cosine similarity between two `KmerCountTable` objects.
-    ///
-    /// # Arguments
-    /// * `other` - The second `KmerCountTable` to compare against.
-    ///
     /// # Returns
     /// The cosine similarity between the two tables as a float value between 0 and 1.
     pub fn cosine(&self, other: &KmerCountTable) -> f64 {
