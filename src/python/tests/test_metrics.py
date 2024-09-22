@@ -4,6 +4,7 @@ from scipy.spatial.distance import cosine
 import numpy as np
 import pytest
 
+# Cosine similarity tests
 
 def test_cosine_similarity_identical_tables():
     """
@@ -157,6 +158,99 @@ def test_cosine_similarity_partial_overlap():
     assert isclose(kct1.cosine(kct2), expected_cosine_sim, rel_tol=1e-5)
 
 
-# Jaccard
+# Jaccard coefficient similarity tests
+import pytest
+from oxli import KmerCountTable
 
-# Jaccard with setops
+def test_jaccard_similarity_identical_tables():
+    """
+    Test Jaccard similarity for two identical KmerCountTable objects.
+    
+    The Jaccard similarity should be 1.0 because both tables contain exactly the same k-mers.
+    """
+    kct1 = KmerCountTable(ksize=4)
+    kct2 = KmerCountTable(ksize=4)
+
+    # Manually set identical k-mer counts for both tables
+    kct1["AAAA"] = 5
+    kct1["TTTC"] = 2
+    kct1["AATT"] = 3
+    kct1["GGGG"] = 1
+
+    kct2["AAAA"] = 5
+    kct2["TTTC"] = 2
+    kct2["AATT"] = 3
+    kct2["GGGG"] = 1
+
+    # Jaccard similarity should be 1.0 for identical sets
+    assert kct1.jaccard(kct2) == 1.0
+
+def test_jaccard_similarity_different_tables():
+    """
+    Test Jaccard similarity for two KmerCountTable objects with different k-mers.
+    
+    The Jaccard similarity will be less than 1.0 because the sets of k-mers differ.
+    """
+    kct1 = KmerCountTable(ksize=4)
+    kct2 = KmerCountTable(ksize=4)
+
+    # Set different k-mer counts for both tables
+    kct1["AAAA"] = 5
+    kct1["TTTC"] = 2
+
+    kct2["AATT"] = 3
+    kct2["GGGG"] = 4
+
+    # Expected result: 0 overlap between the sets
+    assert kct1.jaccard(kct2) == 0.0
+
+def test_jaccard_similarity_partial_overlap():
+    """
+    Test Jaccard similarity for two KmerCountTable objects with partial overlap in k-mers.
+    
+    The Jaccard similarity should be greater than 0.0 but less than 1.0 because there are overlapping k-mers.
+    """
+    kct1 = KmerCountTable(ksize=4)
+    kct2 = KmerCountTable(ksize=4)
+
+    # Set k-mer counts for kct1
+    kct1["AAAA"] = 5
+    kct1["AATT"] = 1
+    kct1["TTTC"] = 2
+    
+    # Set k-mer counts for kct2
+    kct2["AAAA"] = 2
+    kct2["AATT"] = 1
+    kct2["GGGG"] = 4
+
+    # Calculate expected Jaccard similarity: intersection {AAAA, AATT}, union {AAAA, TTTT, AATT, GGGG}
+    assert kct1.jaccard(kct2) == 2 / 4
+
+def test_jaccard_similarity_empty_table():
+    """
+    Test Jaccard similarity for two KmerCountTable objects where one is empty.
+    
+    The Jaccard similarity should be 0.0 because one set is empty, and the union is non-empty.
+    """
+    kct1 = KmerCountTable(ksize=4)
+    kct2 = KmerCountTable(ksize=4)
+
+    # Set counts for kct1
+    kct1["AAAA"] = 5
+    kct1["TTTC"] = 5
+
+    # kct2 is empty
+    assert kct1.jaccard(kct2) == 0.0
+
+def test_jaccard_similarity_both_empty():
+    """
+    Test Jaccard similarity for two empty KmerCountTable objects.
+    
+    The Jaccard similarity should be 1.0 because both sets are empty, and thus identical.
+    """
+    kct1 = KmerCountTable(ksize=4)
+    kct2 = KmerCountTable(ksize=4)
+
+    # Both tables are empty
+    assert kct1.jaccard(kct2) == 1.0
+
