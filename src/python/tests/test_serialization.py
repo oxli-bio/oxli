@@ -1,5 +1,6 @@
 import gzip
 import json
+
 import pytest
 
 from oxli import KmerCountTable

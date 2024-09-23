@@ -1,8 +1,9 @@
-import oxli
+from pathlib import Path
+
 import pytest
 import toml
 
-from pathlib import Path
+import oxli
 from test_basic import create_sample_kmer_table
 
 

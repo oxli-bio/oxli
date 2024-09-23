@@ -1,7 +1,8 @@
 from math import isclose
+
+from scipy.spatial.distance import cosine
 import numpy as np
 import pytest
-from scipy.spatial.distance import cosine
 
 from oxli import KmerCountTable
 

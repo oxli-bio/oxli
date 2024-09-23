@@ -1,6 +1,8 @@
-import pytest
-import tempfile
 from os import remove
+import tempfile
+
+import pytest
+
 from oxli import KmerCountTable
 
 
