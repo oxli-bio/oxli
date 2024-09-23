@@ -4,8 +4,7 @@ image:
 tasks:
   - name: Init Gitpod Workspace
     init: |
-      #pip3 install -r requirements.txt
-      conda env update --yes --file environment.yml --solver=libmamba
+      conda install --yes --solver=libmamba -c conda-forge -c bioconda "compilers" "maturin>=1,<2" "pytest" "rust" "scipy" "toml"
       conda clean --all --yes
     command: |
       echo "Running: $GITPOD_WORKSPACE_URL"
