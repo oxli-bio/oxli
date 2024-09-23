@@ -1,19 +1,30 @@
 // Standard library imports
 use std::collections::hash_map::IntoIter;
 use std::collections::{HashMap, HashSet};
+use std::fs::File;
+use std::io::{BufReader, BufWriter, Write};
+//use std::path::Path;
 
 // External crate imports
 use anyhow::{anyhow, Result};
 use log::debug;
-use pyo3::exceptions::PyValueError;
+use niffler::compression::Format;
+use niffler::get_writer;
+use pyo3::exceptions::{PyIOError, PyValueError};
 use pyo3::prelude::*;
-use sourmash::encodings::{revcomp, HashFunctions};
+use pyo3::PyResult;
+use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
+use sourmash::encodings::{HashFunctions};
+//use sourmash::encodings::revcomp;
 use sourmash::signature::SeqToHashes;
 
 // Set version variable
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[pyclass]
+#[derive(Serialize, Deserialize, Debug)]
+/// Basic KmerCountTable struct, mapping hashes to counts.
 struct KmerCountTable {
     counts: HashMap<u64, u64>,
     pub ksize: u8,
@@ -22,6 +33,7 @@ struct KmerCountTable {
 }
 
 #[pymethods]
+/// Methods on KmerCountTable.
 impl KmerCountTable {
     #[new]
     #[pyo3(signature = (ksize))]
@@ -40,11 +52,11 @@ impl KmerCountTable {
 
     // TODO: Add function to get canonical kmer using hash key
 
+    /// Turn a k-mer into a hashval.
     fn hash_kmer(&self, kmer: String) -> Result<u64> {
         if kmer.len() as u8 != self.ksize {
             Err(anyhow!("wrong ksize"))
         } else {
-            // mut?
             let mut hashes = SeqToHashes::new(
                 kmer.as_bytes(),
                 self.ksize.into(),
@@ -54,17 +66,19 @@ impl KmerCountTable {
                 42,
             );
 
-            let hashval = hashes.next().unwrap();
+            let hashval = hashes.next().expect("error hashing this k-mer");
             Ok(hashval?)
         }
     }
 
+    /// Increment the count of a hashval by 1.
     pub fn count_hash(&mut self, hashval: u64) -> u64 {
         let count = self.counts.entry(hashval).or_insert(0);
         *count += 1;
         *count
     }
 
+    /// Increment the count of a k-mer by 1.
     pub fn count(&mut self, kmer: String) -> PyResult<u64> {
         if kmer.len() as u8 != self.ksize {
             Err(PyValueError::new_err(
@@ -78,13 +92,14 @@ impl KmerCountTable {
         }
     }
 
+    /// Retrieve the count of a k-mer.
     pub fn get(&self, kmer: String) -> PyResult<u64> {
         if kmer.len() as u8 != self.ksize {
             Err(PyValueError::new_err(
                 "kmer size does not match count table ksize",
             ))
         } else {
-            let hashval = self.hash_kmer(kmer).unwrap();
+            let hashval = self.hash_kmer(kmer).expect("error hashing this k-mer");
 
             let count = match self.counts.get(&hashval) {
                 Some(count) => count,
@@ -95,13 +110,13 @@ impl KmerCountTable {
         }
     }
 
-    // Get the count for a specific hash value directly
+    /// Get the count for a specific hash value directly
     pub fn get_hash(&self, hashval: u64) -> u64 {
         // Return the count for the hash value, or 0 if it does not exist
         *self.counts.get(&hashval).unwrap_or(&0)
     }
 
-    // Get counts for a list of hash keys and return an list of counts
+    /// Get counts for a list of hashvals and return a list of counts
     pub fn get_hash_array(&self, hash_keys: Vec<u64>) -> Vec<u64> {
         // Map each hash key to its count, defaulting to 0 if the key is not present
         hash_keys.iter().map(|&key| self.get_hash(key)).collect()
@@ -179,21 +194,119 @@ impl KmerCountTable {
         Ok(to_remove.len() as u64)
     }
 
-    // TODO: Serialize the KmerCountTable instance to a JSON string.
+    /// Serialize the KmerCountTable as a JSON string
+    pub fn serialize_json(&self) -> Result<String> {
+        serde_json::to_string(&self).map_err(|e| anyhow::anyhow!("Serialization error: {}", e))
+    }
 
-    // TODO: Compress JSON string with gzip and save to file
+    /// Save the KmerCountTable to a compressed file using Niffler.
+    pub fn save(&self, filepath: &str) -> PyResult<()> {
+        // Open the file for writing
+        let file = File::create(filepath).map_err(|e| PyIOError::new_err(e.to_string()))?;
 
-    // TODO: Static method to load KmerCountTable from serialized JSON. Yield new object.
+        // Create a Gzipped writer with niffler, using the default compression level
+        let writer = BufWriter::new(file);
+        let mut writer = get_writer(Box::new(writer), Format::Gzip, niffler::level::Level::One)
+            .map_err(|e| PyIOError::new_err(e.to_string()))?;
 
-    // TODO: Add method "dump"
-    // Output tab delimited kmer:count pairs
-    // Default sort by count
-    // Option sort kmers lexicographically
+        // Serialize the KmerCountTable to JSON
+        let json_data = self.serialize_json()?;
 
-    // TODO: Add method "dump_hash"
-    // Output tab delimited hash:count pairs
-    // Default sort by count
-    // Option sort on keys
+        // Write the serialized JSON to the compressed file
+        writer
+            .write_all(json_data.as_bytes())
+            .map_err(|e| PyIOError::new_err(e.to_string()))?;
+
+        Ok(())
+    }
+
+    #[staticmethod]
+    /// Load a KmerCountTable from a compressed file using Niffler.
+    pub fn load(filepath: &str) -> Result<KmerCountTable> {
+        // Open the file for reading
+        let file = File::open(filepath)?;
+
+        // Use Niffler to get a reader that detects the compression format
+        let reader = BufReader::new(file);
+        let (mut reader, _format) = niffler::get_reader(Box::new(reader))?;
+
+        // Read the decompressed data into a string
+        let mut decompressed_data = String::new();
+        reader.read_to_string(&mut decompressed_data)?;
+
+        // Deserialize the JSON string to a KmerCountTable
+        let loaded_table: KmerCountTable = serde_json::from_str(&decompressed_data)
+            .map_err(|e| anyhow::anyhow!("Deserialization error: {}", e))?;
+
+        // Check version compatibility and issue a warning if necessary
+        if loaded_table.version != VERSION {
+            eprintln!(
+                "Version mismatch: loaded version is {}, but current version is {}",
+                loaded_table.version, VERSION
+            );
+        }
+
+        Ok(loaded_table)
+    }
+
+    /// Dump (hash,count) pairs, optional sorted by count or hash key.
+    ///
+    /// # Arguments
+    /// * `file` - Optional file path to write the output. If not provided, returns a list of tuples.
+    /// * `sortkeys` - Optional flag to sort by hash keys (default: False).
+    /// * `sortcounts` - Sort on counts, secondary sort on keys. (default: False).
+    #[pyo3(signature = (file=None, sortcounts=false, sortkeys=false))]
+    pub fn dump(
+        &self,
+        file: Option<String>,
+        sortcounts: bool,
+        sortkeys: bool,
+    ) -> PyResult<Vec<(u64, u64)>> {
+        // Raise an error if both sortcounts and sortkeys are true
+        if sortcounts && sortkeys {
+            return Err(PyValueError::new_err(
+                "Cannot sort by both counts and keys at the same time.",
+            ));
+        }
+
+        // Collect hashes and counts
+        let mut hash_count_pairs: Vec<(&u64, &u64)> = self.counts.iter().collect();
+
+        // Handle sorting based on the flags
+        if sortkeys {
+            // Sort by hash keys if `sortkeys` is set to true
+            hash_count_pairs.sort_by_key(|&(hash, _)| *hash);
+        } else if sortcounts {
+            // Sort by count, secondary sort by hash if `sortcounts` is true
+            hash_count_pairs.sort_by(|&(hash1, count1), &(hash2, count2)| {
+                count1.cmp(count2).then_with(|| hash1.cmp(hash2))
+            });
+        }
+        // If both sortcounts and sortkeys are false, no sorting is done.
+
+        // If a file is provided, write to the file
+        if let Some(filepath) = file {
+            let f = File::create(filepath)?;
+            let mut writer = BufWriter::new(f);
+
+            // Write each hash:count pair to the file
+            for (hash, count) in hash_count_pairs {
+                writeln!(writer, "{}\t{}", hash, count)?;
+            }
+
+            writer.flush()?; // Flush the buffer
+            Ok(vec![]) // Return empty vector to Python
+        } else {
+            // Convert the vector of references to owned values
+            let result: Vec<(u64, u64)> = hash_count_pairs
+                .into_iter()
+                .map(|(&hash, &count)| (hash, count))
+                .collect();
+
+            // Return the vector of (hash, count) tuples
+            Ok(result)
+        }
+    }
 
     /// Calculates the frequency histogram for k-mer counts
     /// Returns a vector of tuples (frequency, count), where 'frequency' is
@@ -433,10 +546,72 @@ impl KmerCountTable {
 
         Ok(v)
     }
+
+    /// Calculates the Jaccard Similarity Coefficient between two KmerCountTable objects.
+    /// # Returns
+    /// The Jaccard Similarity Coefficient between the two tables as a float value between 0 and 1.
+    pub fn jaccard(&self, other: &KmerCountTable) -> f64 {
+        // Get the intersection of the two k-mer sets.
+        let intersection_size = self.intersection(other).len();
+
+        // Get the union of the two k-mer sets.
+        let union_size = self.union(other).len();
+
+        // Handle the case where the union is empty (both sets are empty).
+        if union_size == 0 {
+            return 1.0; // By convention, two empty sets are considered identical.
+        }
+
+        // Calculate and return the Jaccard similarity as a ratio of intersection to union.
+        intersection_size as f64 / union_size as f64
+    }
+
+    /// Cosine similarity between two `KmerCountTable` objects.
+    /// # Returns
+    /// The cosine similarity between the two tables as a float value between 0 and 1.
+    pub fn cosine(&self, other: &KmerCountTable) -> f64 {
+        // Early return if either table is empty.
+        if self.counts.is_empty() || other.counts.is_empty() {
+            return 0.0;
+        }
+
+        // Calculate the dot product in parallel.
+        let dot_product: u64 = self
+            .counts
+            .par_iter()
+            .filter_map(|(&hash, &count1)| {
+                // Only include in the dot product if both tables have the k-mer.
+                other.counts.get(&hash).map(|&count2| count1 * count2)
+            })
+            .sum();
+
+        // Calculate magnitudes in parallel for both tables.
+        let magnitude_self: f64 = self
+            .counts
+            .par_iter()
+            .map(|(_, v)| (*v as f64).powi(2)) // Access the value, square it
+            .sum::<f64>()
+            .sqrt();
+
+        let magnitude_other: f64 = other
+            .counts
+            .par_iter()
+            .map(|(_, v)| (*v as f64).powi(2)) // Access the value, square it
+            .sum::<f64>()
+            .sqrt();
+
+        // If either magnitude is zero (no k-mers), return 0 to avoid division by zero.
+        if magnitude_self == 0.0 || magnitude_other == 0.0 {
+            return 0.0;
+        }
+
+        // Calculate and return cosine similarity.
+        dot_product as f64 / (magnitude_self * magnitude_other)
+    }
 }
 
-// Iterator implementation for KmerCountTable
 #[pyclass]
+/// Iterator implementation for KmerCountTable
 pub struct KmerCountTableIterator {
     inner: IntoIter<u64, u64>, // Now we own the iterator
 }

@@ -1,7 +1,8 @@
-import oxli
 import pytest
 
+import oxli
 from test_basic import create_sample_kmer_table
+
 
 # Set operations
 def test_union():
