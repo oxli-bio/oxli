@@ -89,3 +89,28 @@ def test_version_warning_on_load_stderr(sample_kmer_table, tmp_path, capfd):
         f"loaded version is 0.0.1, but current version is {CURRENT_VERSION}"
         in captured.err
     )
+
+
+def test_load_bad_json(tmp_path, capfd):
+    """
+    Test that failure happens appropriately when trying to load a bad
+    JSON file.
+    """
+    temp_file = str(tmp_path / "bad.json")
+
+    with open(temp_file, 'wt') as fp:
+        fp.write('hello, world')
+
+    with pytest.raises(RuntimeError, match='Deserialization error:'):
+        tb = KmerCountTable.load(temp_file)
+
+
+def test_save_bad_path(sample_kmer_table, tmp_path, capfd):
+    """
+    Test that failure happens appropriately when trying to save to a bad
+    location.
+    """
+    temp_file = str(tmp_path / "noexist" / "save.json")
+
+    with pytest.raises(OSError, match='No such file or directory'):
+        sample_kmer_table.save(temp_file)
