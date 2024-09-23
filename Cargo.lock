@@ -754,8 +754,8 @@ dependencies = [
  "niffler",
  "pyo3",
  "rayon",
- "serde_json",
  "serde",
+ "serde_json",
  "sourmash",
 ]
 
