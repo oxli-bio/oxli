@@ -1,10 +1,8 @@
 import gzip
 import json
 import pytest
-import tempfile
 
 from oxli import KmerCountTable
-from os import remove
 from test_attr import get_version_from_cargo_toml
 
 CURRENT_VERSION = get_version_from_cargo_toml()
@@ -17,15 +15,6 @@ def sample_kmer_table():
     table.count("AAAA")
     table.count("TTTT")
     return table
-
-
-@pytest.fixture
-def temp_file():
-    """Fixture that provides a temporary file path for testing."""
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".json.gz") as temp:
-        yield temp.name
-    # Remove the file after the test is done
-    remove(temp.name)
 
 
 def test_serialize_json(sample_kmer_table):
@@ -49,13 +38,15 @@ def test_serialize_json(sample_kmer_table):
     ), "Version should be serialized."
 
 
-def test_save_load_roundtrip(sample_kmer_table, temp_file):
+def test_save_load_roundtrip(sample_kmer_table, tmp_path):
     """
     Test the save and load functionality.
 
     This test saves a KmerCountTable object to a file, then loads it back and
     verifies that the data in the loaded object matches the original.
     """
+    temp_file = str(tmp_path / "save.json")
+
     # Save the sample KmerCountTable to a Gzip file
     sample_kmer_table.save(temp_file)
 
@@ -72,12 +63,14 @@ def test_save_load_roundtrip(sample_kmer_table, temp_file):
     assert list(loaded_table) == list(sample_kmer_table), "All records in same order."
 
 
-def test_version_warning_on_load_stderr(sample_kmer_table, temp_file, capfd):
+def test_version_warning_on_load_stderr(sample_kmer_table, tmp_path, capfd):
     """
     Test that a warning is issued if the loaded object's version is different from the current Oxli version.
 
     Uses pytest's capsys fixture to capture stderr output.
     """
+    temp_file = str(tmp_path / "save.json")
+
     # Save the table to a file
     sample_kmer_table.save(temp_file)
 
@@ -96,3 +89,28 @@ def test_version_warning_on_load_stderr(sample_kmer_table, temp_file, capfd):
         f"loaded version is 0.0.1, but current version is {CURRENT_VERSION}"
         in captured.err
     )
+
+
+def test_load_bad_json(tmp_path, capfd):
+    """
+    Test that failure happens appropriately when trying to load a bad
+    JSON file.
+    """
+    temp_file = str(tmp_path / "bad.json")
+
+    with open(temp_file, "wt") as fp:
+        fp.write("hello, world")
+
+    with pytest.raises(RuntimeError, match="Deserialization error:"):
+        tb = KmerCountTable.load(temp_file)
+
+
+def test_save_bad_path(sample_kmer_table, tmp_path, capfd):
+    """
+    Test that failure happens appropriately when trying to save to a bad
+    location.
+    """
+    temp_file = str(tmp_path / "noexist" / "save.json")
+
+    with pytest.raises(OSError, match="No such file or directory"):
+        sample_kmer_table.save(temp_file)
