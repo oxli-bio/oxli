@@ -1,8 +1,9 @@
 from math import isclose
-from oxli import KmerCountTable
-from scipy.spatial.distance import cosine
 import numpy as np
 import pytest
+from scipy.spatial.distance import cosine
+
+from oxli import KmerCountTable
 
 # Cosine similarity tests
 
@@ -35,6 +36,7 @@ def test_cosine_similarity_identical_tables():
     # Cosine similarity between identical tables should be 1.0
     # Allow value within 0.001%
     assert isclose(kct1.cosine(kct2), 1.0, rel_tol=1e-5)
+    assert isclose(kct2.cosine(kct1), 1.0, rel_tol=1e-5)
 
     # Using scipy to calculate the expected value
     vector1 = [5, 3, 1, 4, 6]
@@ -43,6 +45,7 @@ def test_cosine_similarity_identical_tables():
 
     # Allow value within 0.001%
     assert isclose(kct1.cosine(kct2), expected_cosine_sim, rel_tol=1e-5)
+    assert isclose(kct2.cosine(kct1), expected_cosine_sim, rel_tol=1e-5)
 
 
 def test_cosine_similarity_different_tables():
@@ -77,6 +80,7 @@ def test_cosine_similarity_different_tables():
 
     # Allow value within 0.001%
     assert isclose(kct1.cosine(kct2), expected_cosine_sim, rel_tol=1e-5)
+    assert isclose(kct2.cosine(kct1), expected_cosine_sim, rel_tol=1e-5)
 
 
 def test_cosine_similarity_empty_table():
@@ -111,6 +115,7 @@ def test_cosine_similarity_empty_table():
     expected_cosine_sim = 1 - cosine(vector1, vector2)
 
     assert isclose(kct1.cosine(kct2), expected_cosine_sim, rel_tol=1e-5)
+    assert isclose(kct2.cosine(kct1), expected_cosine_sim, rel_tol=1e-5)
 
 
 def test_cosine_similarity_both_empty():
@@ -123,6 +128,7 @@ def test_cosine_similarity_both_empty():
 
     # Cosine similarity should be 0.0 for two empty tables
     assert kct1.cosine(kct2) == 0.0
+    assert kct2.cosine(kct1) == 0.0
 
 
 def test_cosine_similarity_partial_overlap():
@@ -136,7 +142,7 @@ def test_cosine_similarity_partial_overlap():
     kct2 = KmerCountTable(ksize=4)
 
     # Manually set k-mer counts for kct1
-    kct1["AAAA"] = 0  # Not in kct2
+    # kct1["AAAA"] = 0  # Not in kct2
     kct1["AATT"] = 3
     kct1["GGGG"] = 1
     kct1["CCAA"] = 4
@@ -157,12 +163,10 @@ def test_cosine_similarity_partial_overlap():
 
     # Cosine similarity is expected to be > 0 but < 1
     assert isclose(kct1.cosine(kct2), expected_cosine_sim, rel_tol=1e-5)
+    assert isclose(kct2.cosine(kct1), expected_cosine_sim, rel_tol=1e-5)
 
 
 # Jaccard coefficient similarity tests
-import pytest
-from oxli import KmerCountTable
-
 
 def test_jaccard_similarity_identical_tables():
     """
@@ -186,6 +190,7 @@ def test_jaccard_similarity_identical_tables():
 
     # Jaccard similarity should be 1.0 for identical sets
     assert kct1.jaccard(kct2) == 1.0
+    assert kct2.jaccard(kct1) == 1.0
 
 
 def test_jaccard_similarity_different_tables():
@@ -206,6 +211,7 @@ def test_jaccard_similarity_different_tables():
 
     # Expected result: 0 overlap between the sets
     assert kct1.jaccard(kct2) == 0.0
+    assert kct2.jaccard(kct1) == 0.0
 
 
 def test_jaccard_similarity_partial_overlap():
@@ -229,6 +235,7 @@ def test_jaccard_similarity_partial_overlap():
 
     # Calculate expected Jaccard similarity: intersection {AAAA, AATT}, union {AAAA, TTTT, AATT, GGGG}
     assert kct1.jaccard(kct2) == 2 / 4
+    assert kct2.jaccard(kct1) == 2 / 4
 
 
 def test_jaccard_similarity_empty_table():
@@ -246,6 +253,7 @@ def test_jaccard_similarity_empty_table():
 
     # kct2 is empty
     assert kct1.jaccard(kct2) == 0.0
+    assert kct2.jaccard(kct1) == 0.0
 
 
 def test_jaccard_similarity_both_empty():
@@ -259,3 +267,4 @@ def test_jaccard_similarity_both_empty():
 
     # Both tables are empty
     assert kct1.jaccard(kct2) == 1.0
+    assert kct2.jaccard(kct1) == 1.0
