@@ -168,6 +168,7 @@ def test_cosine_similarity_partial_overlap():
 
 # Jaccard coefficient similarity tests
 
+
 def test_jaccard_similarity_identical_tables():
     """
     Test Jaccard similarity for two identical KmerCountTable objects.
