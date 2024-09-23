@@ -13,7 +13,7 @@
 oxli is a powerful Rust library with a simple Python interface for counting k-mers
 in genomic sequencing data.
 
-Use oxli to bring fast kmer counting and comparison operations to you Python projects.
+Use oxli to bring fast kmer counting and comparison operations to your Python projects.
 
 This library is written on top of the
 [sourmash](https://sourmash.readthedocs.io/)
@@ -47,7 +47,7 @@ pip install -e '.[test]'
 
 ## Getting Started
 
-See the [the Oxli Wiki](https://github.com/oxli-bio/oxli/wiki/Getting-Started) for documentation on the Python API.
+See the [the oxli Wiki](https://github.com/oxli-bio/oxli/wiki/Getting-Started) for documentation on the Python API.
 
 ### Basic Usage
 
@@ -70,7 +70,7 @@ kct.count("AAAA")
 kct.count("AAAA")
 >>> 2
 
-# Forward and Reverse compliment counted together
+# Forward and Reverse complement counted together
 kct.count("TTTT")
 >>> 3
 
