@@ -1,0 +1,26 @@
+image:
+  file: .gitpod.Dockerfile
+
+tasks:
+  - name: Init Gitpod Workspace
+    init: |
+      #pip3 install -r requirements.txt
+      conda env update --yes --file environment.yml --solver=libmamba
+      conda clean --all --yes
+    command: |
+      echo "Running: $GITPOD_WORKSPACE_URL"
+
+ports:
+  - name: Jupyter Notebook
+    port: 8888
+    onOpen: open-browser
+
+vscode:
+  extensions:
+    - eamodio.gitlens
+    - github.vscode-pull-request-github
+    - janisdd.vscode-edit-csv
+    - mechatroner.rainbow-csv
+    - ms-python.debugpy
+    - ms-python.python
+    
