@@ -20,7 +20,6 @@ use sourmash::signature::SeqToHashes;
 // use sourmash::_hash_murmur;
 // use sourmash::sketch::nodegraph::Nodegraph;
 
-
 extern crate needletail;
 use needletail::{parse_fastx_file, FastxReader, Sequence};
 
