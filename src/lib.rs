@@ -13,6 +13,7 @@ use niffler::get_writer;
 use pyo3::exceptions::{PyIOError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::PyResult;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use sourmash::encodings::HashFunctions;
 use sourmash::signature::SeqToHashes;
@@ -497,6 +498,68 @@ impl KmerCountTable {
         // Set the count for the k-mer
         self.counts.insert(hashval, count);
         Ok(())
+    }
+
+    /// Calculates the Jaccard Similarity Coefficient between two KmerCountTable objects.
+    /// # Returns
+    /// The Jaccard Similarity Coefficient between the two tables as a float value between 0 and 1.
+    pub fn jaccard(&self, other: &KmerCountTable) -> f64 {
+        // Get the intersection of the two k-mer sets.
+        let intersection_size = self.intersection(other).len();
+
+        // Get the union of the two k-mer sets.
+        let union_size = self.union(other).len();
+
+        // Handle the case where the union is empty (both sets are empty).
+        if union_size == 0 {
+            return 1.0; // By convention, two empty sets are considered identical.
+        }
+
+        // Calculate and return the Jaccard similarity as a ratio of intersection to union.
+        intersection_size as f64 / union_size as f64
+    }
+
+    /// Cosine similarity between two `KmerCountTable` objects.
+    /// # Returns
+    /// The cosine similarity between the two tables as a float value between 0 and 1.
+    pub fn cosine(&self, other: &KmerCountTable) -> f64 {
+        // Early return if either table is empty.
+        if self.counts.is_empty() || other.counts.is_empty() {
+            return 0.0;
+        }
+
+        // Calculate the dot product in parallel.
+        let dot_product: u64 = self
+            .counts
+            .par_iter()
+            .filter_map(|(&hash, &count1)| {
+                // Only include in the dot product if both tables have the k-mer.
+                other.counts.get(&hash).map(|&count2| count1 * count2)
+            })
+            .sum();
+
+        // Calculate magnitudes in parallel for both tables.
+        let magnitude_self: f64 = self
+            .counts
+            .par_iter()
+            .map(|(_, v)| (*v as f64).powi(2)) // Access the value, square it
+            .sum::<f64>()
+            .sqrt();
+
+        let magnitude_other: f64 = other
+            .counts
+            .par_iter()
+            .map(|(_, v)| (*v as f64).powi(2)) // Access the value, square it
+            .sum::<f64>()
+            .sqrt();
+
+        // If either magnitude is zero (no k-mers), return 0 to avoid division by zero.
+        if magnitude_self == 0.0 || magnitude_other == 0.0 {
+            return 0.0;
+        }
+
+        // Calculate and return cosine similarity.
+        dot_product as f64 / (magnitude_self * magnitude_other)
     }
 }
 
