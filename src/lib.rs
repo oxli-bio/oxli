@@ -15,7 +15,7 @@ use pyo3::prelude::*;
 use pyo3::PyResult;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use sourmash::encodings::{HashFunctions};
+use sourmash::encodings::HashFunctions;
 //use sourmash::encodings::revcomp;
 use sourmash::signature::SeqToHashes;
 
