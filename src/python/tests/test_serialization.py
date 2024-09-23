@@ -98,10 +98,10 @@ def test_load_bad_json(tmp_path, capfd):
     """
     temp_file = str(tmp_path / "bad.json")
 
-    with open(temp_file, 'wt') as fp:
-        fp.write('hello, world')
+    with open(temp_file, "wt") as fp:
+        fp.write("hello, world")
 
-    with pytest.raises(RuntimeError, match='Deserialization error:'):
+    with pytest.raises(RuntimeError, match="Deserialization error:"):
         tb = KmerCountTable.load(temp_file)
 
 
@@ -112,5 +112,5 @@ def test_save_bad_path(sample_kmer_table, tmp_path, capfd):
     """
     temp_file = str(tmp_path / "noexist" / "save.json")
 
-    with pytest.raises(OSError, match='No such file or directory'):
+    with pytest.raises(OSError, match="No such file or directory"):
         sample_kmer_table.save(temp_file)
