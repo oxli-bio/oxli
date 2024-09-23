@@ -12,6 +12,9 @@ on:
 jobs:
   rust_on_linux:
     runs-on: ubuntu-latest
+    concurrency:
+      group: ${{ github.ref }}
+      cancel-in-progress: true
     steps:
     - uses: actions/checkout@v4
       with:
