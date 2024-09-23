@@ -2,6 +2,7 @@ import pytest
 
 import oxli
 
+
 # Helper function, create tables.
 def create_sample_kmer_table(ksize, kmers):
     table = oxli.KmerCountTable(ksize)
