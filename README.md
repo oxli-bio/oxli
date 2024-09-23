@@ -70,7 +70,7 @@ kct.count("AAAA")
 kct.count("AAAA")
 >>> 2
 
-# Forward and Reverse compliment counted together
+# Forward and Reverse complement counted together
 kct.count("TTTT")
 >>> 3
 
