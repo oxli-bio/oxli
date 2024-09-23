@@ -1,5 +1,6 @@
-import oxli
 import pytest
+
+import oxli
 
 
 # Helper function, create tables.

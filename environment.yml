@@ -7,4 +7,5 @@ dependencies:
     - maturin>=1,<2
     - pytest
     - rust
+    - scipy
     - toml
