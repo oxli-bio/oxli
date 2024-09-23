@@ -22,6 +22,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[pyclass]
 #[derive(Serialize, Deserialize, Debug)]
+/// Basic KmerCountTable struct, mapping hashes to counts.
 struct KmerCountTable {
     counts: HashMap<u64, u64>,
     pub ksize: u8,
@@ -30,6 +31,7 @@ struct KmerCountTable {
 }
 
 #[pymethods]
+/// Methods on KmerCountTable.
 impl KmerCountTable {
     #[new]
     #[pyo3(signature = (ksize))]
@@ -48,11 +50,11 @@ impl KmerCountTable {
 
     // TODO: Add function to get canonical kmer using hash key
 
+    /// Turn a k-mer into a hashval.
     fn hash_kmer(&self, kmer: String) -> Result<u64> {
         if kmer.len() as u8 != self.ksize {
             Err(anyhow!("wrong ksize"))
         } else {
-            // mut?
             let mut hashes = SeqToHashes::new(
                 kmer.as_bytes(),
                 self.ksize.into(),
@@ -67,12 +69,14 @@ impl KmerCountTable {
         }
     }
 
+    /// Increment the count of a hashval by 1.
     pub fn count_hash(&mut self, hashval: u64) -> u64 {
         let count = self.counts.entry(hashval).or_insert(0);
         *count += 1;
         *count
     }
 
+    /// Increment the count of a k-mer by 1.
     pub fn count(&mut self, kmer: String) -> PyResult<u64> {
         if kmer.len() as u8 != self.ksize {
             Err(PyValueError::new_err(
@@ -86,6 +90,7 @@ impl KmerCountTable {
         }
     }
 
+    /// Retrieve the count of a k-mer.
     pub fn get(&self, kmer: String) -> PyResult<u64> {
         if kmer.len() as u8 != self.ksize {
             Err(PyValueError::new_err(
@@ -103,13 +108,13 @@ impl KmerCountTable {
         }
     }
 
-    // Get the count for a specific hash value directly
+    /// Get the count for a specific hash value directly
     pub fn get_hash(&self, hashval: u64) -> u64 {
         // Return the count for the hash value, or 0 if it does not exist
         *self.counts.get(&hashval).unwrap_or(&0)
     }
 
-    // Get counts for a list of hash keys and return an list of counts
+    /// Get counts for a list of hashvals and return a list of counts
     pub fn get_hash_array(&self, hash_keys: Vec<u64>) -> Vec<u64> {
         // Map each hash key to its count, defaulting to 0 if the key is not present
         hash_keys.iter().map(|&key| self.get_hash(key)).collect()
@@ -187,7 +192,7 @@ impl KmerCountTable {
         Ok(to_remove.len() as u64)
     }
 
-    // Serialize the KmerCountTable as a JSON string
+    /// Serialize the KmerCountTable as a JSON string
     pub fn serialize_json(&self) -> Result<String> {
         serde_json::to_string(&self).map_err(|e| anyhow::anyhow!("Serialization error: {}", e))
     }
@@ -495,8 +500,8 @@ impl KmerCountTable {
     }
 }
 
-// Iterator implementation for KmerCountTable
 #[pyclass]
+/// Iterator implementation for KmerCountTable
 pub struct KmerCountTableIterator {
     inner: IntoIter<u64, u64>, // Now we own the iterator
 }
