@@ -9,7 +9,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
+          ref: ${{ github.sha }}
       - uses: chartboost/ruff-action@v1
         with:
           src: './src/python'
