@@ -64,7 +64,7 @@ impl KmerCountTable {
                 42,
             );
 
-            let hashval = hashes.next().unwrap();
+            let hashval = hashes.next().expect("error hashing this k-mer");
             Ok(hashval?)
         }
     }
@@ -97,7 +97,7 @@ impl KmerCountTable {
                 "kmer size does not match count table ksize",
             ))
         } else {
-            let hashval = self.hash_kmer(kmer).unwrap();
+            let hashval = self.hash_kmer(kmer).expect("error hashing this k-mer");
 
             let count = match self.counts.get(&hashval) {
                 Some(count) => count,
