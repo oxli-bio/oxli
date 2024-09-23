@@ -746,7 +746,7 @@ dependencies = [
 
 [[package]]
 name = "oxli"
-version = "0.3.0-rc2"
+version = "0.3.0-rc3"
 dependencies = [
  "anyhow",
  "env_logger",
