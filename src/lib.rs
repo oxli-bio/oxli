@@ -1,23 +1,28 @@
 // Standard library imports
 use std::collections::hash_map::IntoIter;
 use std::collections::{HashMap, HashSet};
+use std::fs::File;
+use std::io::{BufReader, BufWriter, Write};
+//use std::path::Path;
 
 // External crate imports
 use anyhow::{anyhow, Result};
 use log::debug;
-use pyo3::exceptions::PyValueError;
+use niffler::compression::Format;
+use niffler::get_writer;
+use pyo3::exceptions::{PyIOError, PyValueError};
 use pyo3::prelude::*;
+use pyo3::PyResult;
+use serde::{Deserialize, Serialize};
 use sourmash::encodings::HashFunctions;
 use sourmash::signature::SeqToHashes;
-
-use pyo3::PyResult;
-use std::fs::File;
-use std::io::{BufWriter, Write};
 
 // Set version variable
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[pyclass]
+#[derive(Serialize, Deserialize, Debug)]
+/// Basic KmerCountTable struct, mapping hashes to counts.
 struct KmerCountTable {
     counts: HashMap<u64, u64>,
     pub ksize: u8,
@@ -26,6 +31,7 @@ struct KmerCountTable {
 }
 
 #[pymethods]
+/// Methods on KmerCountTable.
 impl KmerCountTable {
     #[new]
     #[pyo3(signature = (ksize))]
@@ -44,11 +50,11 @@ impl KmerCountTable {
 
     // TODO: Add function to get canonical kmer using hash key
 
+    /// Turn a k-mer into a hashval.
     fn hash_kmer(&self, kmer: String) -> Result<u64> {
         if kmer.len() as u8 != self.ksize {
             Err(anyhow!("wrong ksize"))
         } else {
-            // mut?
             let mut hashes = SeqToHashes::new(
                 kmer.as_bytes(),
                 self.ksize.into(),
@@ -63,12 +69,14 @@ impl KmerCountTable {
         }
     }
 
+    /// Increment the count of a hashval by 1.
     pub fn count_hash(&mut self, hashval: u64) -> u64 {
         let count = self.counts.entry(hashval).or_insert(0);
         *count += 1;
         *count
     }
 
+    /// Increment the count of a k-mer by 1.
     pub fn count(&mut self, kmer: String) -> PyResult<u64> {
         if kmer.len() as u8 != self.ksize {
             Err(PyValueError::new_err(
@@ -82,6 +90,7 @@ impl KmerCountTable {
         }
     }
 
+    /// Retrieve the count of a k-mer.
     pub fn get(&self, kmer: String) -> PyResult<u64> {
         if kmer.len() as u8 != self.ksize {
             Err(PyValueError::new_err(
@@ -99,13 +108,13 @@ impl KmerCountTable {
         }
     }
 
-    // Get the count for a specific hash value directly
+    /// Get the count for a specific hash value directly
     pub fn get_hash(&self, hashval: u64) -> u64 {
         // Return the count for the hash value, or 0 if it does not exist
         *self.counts.get(&hashval).unwrap_or(&0)
     }
 
-    // Get counts for a list of hash keys and return an list of counts
+    /// Get counts for a list of hashvals and return a list of counts
     pub fn get_hash_array(&self, hash_keys: Vec<u64>) -> Vec<u64> {
         // Map each hash key to its count, defaulting to 0 if the key is not present
         hash_keys.iter().map(|&key| self.get_hash(key)).collect()
@@ -183,11 +192,60 @@ impl KmerCountTable {
         Ok(to_remove.len() as u64)
     }
 
-    // TODO: Serialize the KmerCountTable instance to a JSON string.
+    /// Serialize the KmerCountTable as a JSON string
+    pub fn serialize_json(&self) -> Result<String> {
+        serde_json::to_string(&self).map_err(|e| anyhow::anyhow!("Serialization error: {}", e))
+    }
 
-    // TODO: Compress JSON string with gzip and save to file
+    /// Save the KmerCountTable to a compressed file using Niffler.
+    pub fn save(&self, filepath: &str) -> PyResult<()> {
+        // Open the file for writing
+        let file = File::create(filepath).map_err(|e| PyIOError::new_err(e.to_string()))?;
 
-    // TODO: Static method to load KmerCountTable from serialized JSON. Yield new object.
+        // Create a Gzipped writer with niffler, using the default compression level
+        let writer = BufWriter::new(file);
+        let mut writer = get_writer(Box::new(writer), Format::Gzip, niffler::level::Level::One)
+            .map_err(|e| PyIOError::new_err(e.to_string()))?;
+
+        // Serialize the KmerCountTable to JSON
+        let json_data = self.serialize_json()?;
+
+        // Write the serialized JSON to the compressed file
+        writer
+            .write_all(json_data.as_bytes())
+            .map_err(|e| PyIOError::new_err(e.to_string()))?;
+
+        Ok(())
+    }
+
+    #[staticmethod]
+    /// Load a KmerCountTable from a compressed file using Niffler.
+    pub fn load(filepath: &str) -> Result<KmerCountTable> {
+        // Open the file for reading
+        let file = File::open(filepath)?;
+
+        // Use Niffler to get a reader that detects the compression format
+        let reader = BufReader::new(file);
+        let (mut reader, _format) = niffler::get_reader(Box::new(reader))?;
+
+        // Read the decompressed data into a string
+        let mut decompressed_data = String::new();
+        reader.read_to_string(&mut decompressed_data)?;
+
+        // Deserialize the JSON string to a KmerCountTable
+        let loaded_table: KmerCountTable = serde_json::from_str(&decompressed_data)
+            .map_err(|e| anyhow::anyhow!("Deserialization error: {}", e))?;
+
+        // Check version compatibility and issue a warning if necessary
+        if loaded_table.version != VERSION {
+            eprintln!(
+                "Version mismatch: loaded version is {}, but current version is {}",
+                loaded_table.version, VERSION
+            );
+        }
+
+        Ok(loaded_table)
+    }
 
     /// Dump (hash,count) pairs, optional sorted by count or hash key.
     ///
@@ -442,8 +500,8 @@ impl KmerCountTable {
     }
 }
 
-// Iterator implementation for KmerCountTable
 #[pyclass]
+/// Iterator implementation for KmerCountTable
 pub struct KmerCountTableIterator {
     inner: IntoIter<u64, u64>, // Now we own the iterator
 }
