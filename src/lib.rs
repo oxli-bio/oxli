@@ -15,8 +15,8 @@ use pyo3::prelude::*;
 use pyo3::PyResult;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use sourmash::encodings::revcomp;
 use sourmash::encodings::HashFunctions;
-//use sourmash::encodings::revcomp;
 use sourmash::signature::SeqToHashes;
 
 // Set version variable
@@ -506,7 +506,11 @@ impl KmerCountTable {
         seq: String,
         allow_bad_kmers: bool,
     ) -> PyResult<Vec<(String, u64)>> {
+        // TODO: optimize RC calculation
+        // TODO: write lots of tests!
+        let seq = seq.to_ascii_uppercase();
         let seqb = seq.as_bytes();
+
         let mut hasher = SeqToHashes::new(
             seqb,
             self.ksize.into(),
@@ -522,27 +526,22 @@ impl KmerCountTable {
         let mut v: Vec<(String, u64)> = vec![];
         for start in 0..end {
             let substr = &seq[start..start + ksize];
-            let hashval = hasher.next().unwrap().unwrap();
-            v.push((substr.to_string(), hashval));
-        }
-        /*
-                let seqb_rc = revcomp(&seqb);
-                let seq_rc = String::from_utf8(seqb_rc.clone()).unwrap();
+            let substr_b_rc = revcomp(&seqb[start..start + ksize]);
+            let substr_rc =
+                std::str::from_utf8(&substr_b_rc).expect("invalid utf-8 sequence for rev comp");
+            let hashval = hasher
+                .next()
+                .expect("should not run out of hashes");
 
-                let mut hasher = SeqToHashes::new(
-                    &seqb_rc,
-                    self.ksize.into(),
-                    allow_bad_kmers,
-                    false,
-                    HashFunctions::Murmur64Dna,
-                    42,
-                );
-                for start in 0..end {
-                    let substr = &seq_rc[start..start + ksize];
-                    let hashval = hasher.next().unwrap().unwrap();
-                    v.push((substr.to_string(), hashval));
-            }
-        */
+            let canonical_kmer = if substr < substr_rc {
+                substr
+            } else {
+                eprintln!("choosing revcomp!!");
+                substr_rc
+            };
+
+            v.push((canonical_kmer.to_string(), hashval));
+        }
 
         Ok(v)
     }
