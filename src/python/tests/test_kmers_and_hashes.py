@@ -60,7 +60,7 @@ def test_basic_lower():
                  ('CAAC', 7315150081962684964)]
 
 
-def test_bad_kmers():
+def test_bad_kmers_raise_error():
     "Test that sequences are turned into uppercase appropriately."
     seq = "acxttg"
     cg = oxli.KmerCountTable(ksize=4)
@@ -72,3 +72,15 @@ def test_bad_kmers():
         assert False, "this should fail"
     except:
         pass
+
+
+def test_bad_kmers_allowed():
+    "Test that sequences are turned into uppercase appropriately."
+    seq = "aattxttgg"
+    cg = oxli.KmerCountTable(ksize=4)
+
+    x = cg.kmers_and_hashes(seq, True)
+    print(x)
+    assert x == [('AATT', 382727017318141683),
+                 ('', 0), ('', 0), ('', 0), ('', 0),
+                 ('CCAA', 1798905482136869687)]

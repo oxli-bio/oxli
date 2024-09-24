@@ -507,7 +507,7 @@ impl KmerCountTable {
         allow_bad_kmers: bool,
     ) -> PyResult<Vec<(String, u64)>> {
         // TODO: optimize RC calculation
-        // TODO: write lots of tests!
+        // TODO: confirm that there are no more hashes left? unreachable?
         let seq = seq.to_ascii_uppercase();
         let seqb = seq.as_bytes();
 
@@ -533,14 +533,22 @@ impl KmerCountTable {
                 .next()
                 .expect("should not run out of hashes");
 
-            let canonical_kmer = if substr < substr_rc {
-                substr
+            if let Ok(hashval) = hashval {
+                if hashval > 0 {
+                    let canonical_kmer = if substr < substr_rc {
+                        substr
+                    } else {
+                        eprintln!("choosing revcomp!!");
+                        substr_rc
+                    };
+                    v.push((canonical_kmer.to_string(), hashval));
+                } else {
+                    v.push(("".to_owned(), 0));
+                }
             } else {
-                eprintln!("choosing revcomp!!");
-                substr_rc
-            };
-
-            v.push((canonical_kmer.to_string(), hashval));
+                let msg = format!("bad k-mer at position: {}", start);
+                return Err(PyValueError::new_err(msg));
+            }
         }
 
         Ok(v)
