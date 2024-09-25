@@ -391,13 +391,16 @@ impl KmerCountTable {
         self.counts.values().sum()
     }
 
-    // Consume this DNA string. Return number of k-mers consumed.
-    #[pyo3(signature = (seq, allow_bad_kmers=true))]
-    pub fn consume(&mut self, seq: String, allow_bad_kmers: bool) -> PyResult<u64> {
+    // Consume this DNA string. Return total number of k-mers consumed.
+    // If "skip_bad_kmers = true" then ignore kmers with non-DNA characters
+    // else if "false" consume kmers until a bad kmer in encountered, then
+    // exit with error.
+    #[pyo3(signature = (seq, skip_bad_kmers=true))]
+    pub fn consume(&mut self, seq: String, skip_bad_kmers: bool) -> PyResult<u64> {
         let hashes = SeqToHashes::new(
             seq.as_bytes(),
             self.ksize.into(),
-            allow_bad_kmers,
+            skip_bad_kmers,
             false,
             HashFunctions::Murmur64Dna,
             42,

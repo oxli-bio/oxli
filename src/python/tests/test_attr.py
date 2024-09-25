@@ -67,7 +67,7 @@ def test_consumed_after_count():
 
 def test_consumed_after_consume():
     kmer_table = oxli.KmerCountTable(ksize=16)
-    kmer_table.consume("ACGTACGXACGTACGT", allow_bad_kmers=True)  # Length is 16
+    kmer_table.consume("ACGTACGXACGTACGT", skip_bad_kmers=True)  # Length is 16
     assert (
         kmer_table.consumed == 16
     ), "consumed should be updated to 16 after consuming sequence"

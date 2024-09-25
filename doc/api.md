@@ -49,7 +49,7 @@ Reverse complement are of course handled:
 You can fail on bad k-mers:
 
 ```python
->>> counts.consume('XXXCGGAGGAAGCAAGAACAAAATATTTTTTCATGGG', allow_bad_kmers=False)
+>>> counts.consume('XXXCGGAGGAAGCAAGAACAAAATATTTTTTCATGGG', skip_bad_kmers=False)
 Traceback (most recent call last):
 ...
 ValueError: bad k-mer encountered at position 0
@@ -59,7 +59,7 @@ ValueError: bad k-mer encountered at position 0
 or allow them (which is default):
 
 ```python
->>> counts.consume('XXXCGGAGGAAGCAAGAACAAAATATTTTTTCATGGG', allow_bad_kmers=True)
+>>> counts.consume('XXXCGGAGGAAGCAAGAACAAAATATTTTTTCATGGG', skip_bad_kmers=True)
 4
 
 ```
