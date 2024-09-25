@@ -13,14 +13,16 @@ def create_sample_kmer_table(ksize, kmers):
 
 def test_basic():
     "string containing only forward canonical kmers."
-    seq = "ATAAACC"             # all forward k-mers
+    seq = "ATAAACC"  # all forward k-mers
     cg = oxli.KmerCountTable(ksize=4)
 
     x = cg.kmers_and_hashes(seq, False)
-    assert x == [('ATAA', 179996601836427478),
-                 ('TAAA', 15286642655859448092),
-                 ('AAAC', 9097280691811734508),
-                 ('AACC', 6779379503393060785)]
+    assert x == [
+        ("ATAA", 179996601836427478),
+        ("TAAA", 15286642655859448092),
+        ("AAAC", 9097280691811734508),
+        ("AACC", 6779379503393060785),
+    ]
 
 
 def test_basic_rc():
@@ -30,10 +32,12 @@ def test_basic_rc():
 
     x = cg.kmers_and_hashes(seq, False)
     print(x)
-    assert x == [('AACC', 6779379503393060785),
-                 ('AAAC', 9097280691811734508),
-                 ('TAAA', 15286642655859448092),
-                 ('ATAA', 179996601836427478)]
+    assert x == [
+        ("AACC", 6779379503393060785),
+        ("AAAC", 9097280691811734508),
+        ("TAAA", 15286642655859448092),
+        ("ATAA", 179996601836427478),
+    ]
 
 
 def test_basic_mixed():
@@ -43,9 +47,11 @@ def test_basic_mixed():
 
     x = cg.kmers_and_hashes(seq, False)
     print(x)
-    assert x == [('ACGT', 2597925387403686983),
-                 ('AACG', 7952982457453691616),
-                 ('CAAC', 7315150081962684964)]
+    assert x == [
+        ("ACGT", 2597925387403686983),
+        ("AACG", 7952982457453691616),
+        ("CAAC", 7315150081962684964),
+    ]
 
 
 def test_basic_lower():
@@ -55,9 +61,11 @@ def test_basic_lower():
 
     x = cg.kmers_and_hashes(seq, False)
     print(x)
-    assert x == [('ACGT', 2597925387403686983),
-                 ('AACG', 7952982457453691616),
-                 ('CAAC', 7315150081962684964)]
+    assert x == [
+        ("ACGT", 2597925387403686983),
+        ("AACG", 7952982457453691616),
+        ("CAAC", 7315150081962684964),
+    ]
 
 
 def test_bad_kmers_raise_error():
@@ -81,6 +89,11 @@ def test_bad_kmers_allowed():
 
     x = cg.kmers_and_hashes(seq, True)
     print(x)
-    assert x == [('AATT', 382727017318141683),
-                 ('', 0), ('', 0), ('', 0), ('', 0),
-                 ('CCAA', 1798905482136869687)]
+    assert x == [
+        ("AATT", 382727017318141683),
+        ("", 0),
+        ("", 0),
+        ("", 0),
+        ("", 0),
+        ("CCAA", 1798905482136869687),
+    ]
