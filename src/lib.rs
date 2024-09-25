@@ -535,9 +535,7 @@ impl KmerCountTable {
             let substr_b_rc = revcomp(&seqb[start..start + ksize]);
             let substr_rc =
                 std::str::from_utf8(&substr_b_rc).expect("invalid utf-8 sequence for rev comp");
-            let hashval = hasher
-                .next()
-                .expect("should not run out of hashes");
+            let hashval = hasher.next().expect("should not run out of hashes");
 
             // Three options:
             // * good kmer, all is well, store canonical k-mer and hashval;
@@ -556,8 +554,7 @@ impl KmerCountTable {
                     v.push(("".to_owned(), 0));
                 }
             } else {
-                let msg = format!("bad k-mer at position {}: {}",
-                                  start, substr);
+                let msg = format!("bad k-mer at position {}: {}", start, substr);
                 return Err(PyValueError::new_err(msg));
             }
         }
