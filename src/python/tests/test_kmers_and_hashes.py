@@ -77,7 +77,7 @@ def test_bad_kmers_raise_error():
     seq = "acxttg"
     cg = oxli.KmerCountTable(ksize=4)
 
-    with pytest.raises(ValueError, match='bad k-mer at position 0: ACXT'):
+    with pytest.raises(ValueError, match="bad k-mer at position 0: ACXT"):
         x = cg.kmers_and_hashes(seq, False)
 
 
@@ -86,7 +86,7 @@ def test_bad_kmers_raise_error_2():
     seq = "aattxttgg"
     cg = oxli.KmerCountTable(ksize=4)
 
-    with pytest.raises(ValueError, match='bad k-mer at position 1: ATTX'):
+    with pytest.raises(ValueError, match="bad k-mer at position 1: ATTX"):
         x = cg.kmers_and_hashes(seq, False)
 
 
