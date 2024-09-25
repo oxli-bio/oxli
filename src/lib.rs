@@ -507,7 +507,7 @@ impl KmerCountTable {
     pub fn kmers_and_hashes(
         &self,
         seq: String,
-        allow_bad_kmers: bool,
+        skip_bad_kmers: bool,
     ) -> PyResult<Vec<(String, u64)>> {
         // TODO: optimize RC calculation
         // TODO: confirm that there are no more hashes left? unreachable?
@@ -517,7 +517,7 @@ impl KmerCountTable {
         let mut hasher = SeqToHashes::new(
             seqb,
             self.ksize.into(),
-            allow_bad_kmers,
+            skip_bad_kmers,
             false,
             HashFunctions::Murmur64Dna,
             42,
