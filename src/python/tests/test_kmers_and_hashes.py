@@ -69,21 +69,25 @@ def test_basic_lower():
 
 
 def test_bad_kmers_raise_error():
-    "Test that sequences are turned into uppercase appropriately."
+    "Test that bad k-mers raise a ValueError with info"
     seq = "acxttg"
     cg = oxli.KmerCountTable(ksize=4)
 
-    # CTB: would be nice to turn this into a better error message,
-    # ideally one containing the bad k-mer and/or location.
-    try:
+    with pytest.raises(ValueError, match='bad k-mer at position 0: ACXT'):
         x = cg.kmers_and_hashes(seq, False)
-        assert False, "this should fail"
-    except:
-        pass
+
+
+def test_bad_kmers_raise_error_2():
+    "Test bad k-mers raise the right error even when not at beginning :)"
+    seq = "aattxttgg"
+    cg = oxli.KmerCountTable(ksize=4)
+
+    with pytest.raises(ValueError, match='bad k-mer at position 1: ATTX'):
+        x = cg.kmers_and_hashes(seq, False)
 
 
 def test_bad_kmers_allowed():
-    "Test that sequences are turned into uppercase appropriately."
+    "Test that bad k-mers are allowed when skip_bad_kmers is True"
     seq = "aattxttgg"
     cg = oxli.KmerCountTable(ksize=4)
 

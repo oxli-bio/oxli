@@ -529,6 +529,9 @@ impl KmerCountTable {
         let mut v: Vec<(String, u64)> = vec![];
         for start in 0..end {
             let substr = &seq[start..start + ksize];
+            // CTB: this calculates RC each time, instead of doing so
+            // using a sliding window. It's easy and works, so I'm
+            // starting here :).
             let substr_b_rc = revcomp(&seqb[start..start + ksize]);
             let substr_rc =
                 std::str::from_utf8(&substr_b_rc).expect("invalid utf-8 sequence for rev comp");
@@ -536,12 +539,16 @@ impl KmerCountTable {
                 .next()
                 .expect("should not run out of hashes");
 
+            // Three options:
+            // * good kmer, all is well, store canonical k-mer and hashval;
+            // * bad k-mer allowed by skip_bad_kmers, and signaled by
+            //   hashval == 0): return empty string & 0;
+            // * bad k-mer not allowed, raise error
             if let Ok(hashval) = hashval {
                 if hashval > 0 {
                     let canonical_kmer = if substr < substr_rc {
                         substr
                     } else {
-                        eprintln!("choosing revcomp!!");
                         substr_rc
                     };
                     v.push((canonical_kmer.to_string(), hashval));
@@ -549,7 +556,8 @@ impl KmerCountTable {
                     v.push(("".to_owned(), 0));
                 }
             } else {
-                let msg = format!("bad k-mer at position: {}", start);
+                let msg = format!("bad k-mer at position {}: {}",
+                                  start, substr);
                 return Err(PyValueError::new_err(msg));
             }
         }
