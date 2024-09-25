@@ -53,7 +53,7 @@ impl KmerCountTable {
     // TODO: Add function to get canonical kmer using hash key
 
     /// Turn a k-mer into a hashval.
-    fn hash_kmer(&self, kmer: String) -> Result<u64> {
+    pub fn hash_kmer(&self, kmer: String) -> Result<u64> {
         if kmer.len() as u8 != self.ksize {
             Err(anyhow!("wrong ksize"))
         } else {

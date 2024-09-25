@@ -53,6 +53,10 @@ def test_basic_mixed():
         ("CAAC", 7315150081962684964),
     ]
 
+    for kmer, hashval_rs in x:
+        print(kmer, hashval_rs, cg.hash_kmer(kmer))
+        assert cg.hash_kmer(kmer) == hashval_rs
+
 
 def test_basic_lower():
     "Test that sequences are turned into uppercase appropriately."
