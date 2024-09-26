@@ -15,6 +15,7 @@ use pyo3::prelude::*;
 use pyo3::PyResult;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use sourmash::encodings::revcomp;
 use sourmash::encodings::HashFunctions;
 use sourmash::signature::SeqToHashes;
 
@@ -52,7 +53,7 @@ impl KmerCountTable {
     // TODO: Add function to get canonical kmer using hash key
 
     /// Turn a k-mer into a hashval.
-    fn hash_kmer(&self, kmer: String) -> Result<u64> {
+    pub fn hash_kmer(&self, kmer: String) -> Result<u64> {
         if kmer.len() as u8 != self.ksize {
             Err(anyhow!("wrong ksize"))
         } else {
@@ -501,6 +502,64 @@ impl KmerCountTable {
         // Set the count for the k-mer
         self.counts.insert(hashval, count);
         Ok(())
+    }
+
+    pub fn kmers_and_hashes(
+        &self,
+        seq: String,
+        skip_bad_kmers: bool,
+    ) -> PyResult<Vec<(String, u64)>> {
+        // TODO: optimize RC calculation
+        // TODO: confirm that there are no more hashes left? unreachable?
+        let seq = seq.to_ascii_uppercase();
+        let seqb = seq.as_bytes();
+
+        let mut hasher = SeqToHashes::new(
+            seqb,
+            self.ksize.into(),
+            skip_bad_kmers,
+            false,
+            HashFunctions::Murmur64Dna,
+            42,
+        );
+
+        let ksize = self.ksize as usize;
+        let end: usize = seq.len() - ksize + 1;
+
+        let mut v: Vec<(String, u64)> = vec![];
+        for start in 0..end {
+            let substr = &seq[start..start + ksize];
+            // CTB: this calculates RC each time, instead of doing so
+            // using a sliding window. It's easy and works, so I'm
+            // starting here :).
+            let substr_b_rc = revcomp(&seqb[start..start + ksize]);
+            let substr_rc =
+                std::str::from_utf8(&substr_b_rc).expect("invalid utf-8 sequence for rev comp");
+            let hashval = hasher.next().expect("should not run out of hashes");
+
+            // Three options:
+            // * good kmer, all is well, store canonical k-mer and hashval;
+            // * bad k-mer allowed by skip_bad_kmers, and signaled by
+            //   hashval == 0): return empty string & 0;
+            // * bad k-mer not allowed, raise error
+            if let Ok(hashval) = hashval {
+                if hashval > 0 {
+                    let canonical_kmer = if substr < substr_rc {
+                        substr
+                    } else {
+                        substr_rc
+                    };
+                    v.push((canonical_kmer.to_string(), hashval));
+                } else {
+                    v.push(("".to_owned(), 0));
+                }
+            } else {
+                let msg = format!("bad k-mer at position {}: {}", start, substr);
+                return Err(PyValueError::new_err(msg));
+            }
+        }
+
+        Ok(v)
     }
 
     /// Calculates the Jaccard Similarity Coefficient between two KmerCountTable objects.
