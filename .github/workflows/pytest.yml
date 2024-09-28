@@ -8,7 +8,7 @@ jobs:
 
     strategy:
       matrix:
-        python-version: [3.10, 3.11, 3.12]  # Test with Python 3.10 to the latest available version
+        python-version: ["3.10", "3.11", "3.12"]  # Test with Python 3.10 to the latest available version
 
     steps:
       # Checkout the latest commit associated with the PR
