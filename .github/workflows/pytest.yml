@@ -13,6 +13,9 @@ jobs:
     steps:
       # Checkout the latest commit associated with the PR
       - uses: actions/checkout@v4
+      
+      - name: Debug matrix value
+        run: echo "Python version is ${{ matrix.python-version }}"
 
       # Set up Python based on the matrix version
       - name: Set up Python
