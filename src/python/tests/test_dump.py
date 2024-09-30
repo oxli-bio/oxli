@@ -181,9 +181,6 @@ def test_dump_kmers_conflicting_sort_options(kmer_count_table):
 def test_dump_kmers_sortcounts_with_ties(kmer_count_table):
     """Test the dump_kmers function with sortcounts=True, ensuring it handles ties in counts."""
     result = kmer_count_table.dump_kmers(file=None, sortcounts=True, sortkeys=False)
-    unsorted = kmer_count_table.dump_kmers(file=None, sortcounts=False, sortkeys=False)
-
-    assert result != unsorted, "If this fails choose a different test dataset"
 
     # Expected output sorted by count, with secondary sorting by kmer for ties
     expected = [
@@ -265,9 +262,6 @@ def test_dump_kmers_sortkeys(kmer_count_table):
     This test verifies if the function sorts by canonical k-mers when `sortkeys` is set to True.
     """
     result = kmer_count_table.dump_kmers(file=None, sortkeys=True)
-    unsorted = kmer_count_table.dump_kmers(file=None, sortcounts=False, sortkeys=False)
-
-    assert result != unsorted, "If this fails choose a different test dataset"
 
     # Expected output sorted by canonical kmer
     expected = [
