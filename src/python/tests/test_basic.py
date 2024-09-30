@@ -166,8 +166,8 @@ def test_get_hash_array():
     assert rev_counts == [0, 1, 2], "Count should be in same order as input list"
 
 
-def test_get_array():
-    """
-    Get vector of counts corresponding to vector of kmers.
-    """
-    pass
+#def test_get_array():
+#    """
+#    Get vector of counts corresponding to vector of kmers.
+#    """
+#    pass
