@@ -72,30 +72,56 @@ def test_basic_lower():
     ]
 
 
-def test_bad_kmers_raise_error():
-    "Test that bad k-mers raise a ValueError with info"
+# def test_bad_kmers_raise_error():
+#    "Test that bad k-mers raise a ValueError with info"
+#    seq = "acxttg"
+#    cg = oxli.KmerCountTable(ksize=4)
+#
+#    with pytest.raises(ValueError, match="bad k-mer at position 0: ACXT"):
+#        x = cg.kmers_and_hashes(seq, False)
+#
+#
+# def test_bad_kmers_raise_error_2():
+#    "Test bad k-mers raise the right error even when not at beginning :)"
+#    seq = "aattxttgg"
+#    cg = oxli.KmerCountTable(ksize=4)
+#
+#    with pytest.raises(ValueError, match="bad k-mer at position 1: ATTX"):
+#        x = cg.kmers_and_hashes(seq, False)
+
+
+def test_bad_kmers_raise_warning(capfd):
+    "Test that bad k-mers print warning with info"
     seq = "acxttg"
     cg = oxli.KmerCountTable(ksize=4)
 
-    with pytest.raises(ValueError, match="bad k-mer at position 0: ACXT"):
-        x = cg.kmers_and_hashes(seq, False)
+    # Capture stderr output
+    x = cg.kmers_and_hashes(seq, False)
+    captured = capfd.readouterr()
+
+    # Check for warning in stderr
+    assert f"bad k-mer at position 0: ACXT" in captured.err
 
 
-def test_bad_kmers_raise_error_2():
+def test_bad_kmers_raise_warning_2(capfd):
     "Test bad k-mers raise the right error even when not at beginning :)"
     seq = "aattxttgg"
     cg = oxli.KmerCountTable(ksize=4)
 
-    with pytest.raises(ValueError, match="bad k-mer at position 1: ATTX"):
-        x = cg.kmers_and_hashes(seq, False)
+    # Capture stderr output
+    x = cg.kmers_and_hashes(seq, False)
+    captured = capfd.readouterr()
+
+    # Check for warning in stderr
+    assert f"bad k-mer at position 1: ATTX" in captured.err
 
 
-def test_bad_kmers_allowed():
-    "Test that bad k-mers are allowed when skip_bad_kmers is True"
+def test_report_bad_kmers():
+    "Test that bad k-mers are reported as (" ",0) when skip_bad_kmers is False"
     seq = "aattxttgg"
     cg = oxli.KmerCountTable(ksize=4)
 
-    x = cg.kmers_and_hashes(seq, True)
+    x = cg.kmers_and_hashes(seq, False)
     print(x)
     assert x == [
         ("AATT", 382727017318141683),
@@ -103,5 +129,18 @@ def test_bad_kmers_allowed():
         ("", 0),
         ("", 0),
         ("", 0),
+        ("CCAA", 1798905482136869687),
+    ]
+
+
+def test_skip_bad_kmers():
+    "Test that bad k-mers are ommited when skip_bad_kmers is True"
+    seq = "aattxttgg"
+    cg = oxli.KmerCountTable(ksize=4)
+
+    x = cg.kmers_and_hashes(seq, True)
+    print(x)
+    assert x == [
+        ("AATT", 382727017318141683),
         ("CCAA", 1798905482136869687),
     ]
