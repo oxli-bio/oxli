@@ -378,6 +378,78 @@ impl KmerCountTable {
         }
     }
 
+    /// Dump (canonical_kmer,count) pairs, optional sorted by count or canonical kmer.
+    ///
+    /// # Arguments
+    /// * `file` - Optional file path to write the output. If not provided, returns a list of tuples.
+    /// * `sortkeys` - Optional flag to sort by canonical kmers (default: False).
+    /// * `sortcounts` - Sort on counts, secondary sort on canonical kmers. (default: False).
+    #[pyo3(signature = (file=None, sortcounts=false, sortkeys=false))]
+    pub fn dump_kmers(
+        &self,
+        file: Option<String>,
+        sortcounts: bool,
+        sortkeys: bool,
+    ) -> PyResult<Vec<(String, u64)>> {
+        // Ensure that the hash:kmer mapping is stored
+        if !self.store_kmers {
+            return Err(PyValueError::new_err(
+                "K-mer storage is disabled. No hash:kmer map is available.",
+            ));
+        }
+
+        // Raise an error if both sortcounts and sortkeys are true
+        if sortcounts && sortkeys {
+            return Err(PyValueError::new_err(
+                "Cannot sort by both counts and kmers at the same time.",
+            ));
+        }
+
+        // Collect canonical k-mers and their counts
+        let mut kmer_count_pairs: Vec<(&String, &u64)> = self
+            .hash_to_kmer
+            .as_ref()
+            .unwrap()
+            .par_iter() // Use rayon for parallel iteration
+            .map(|(&hash, kmer)| (kmer, self.counts.get(&hash).unwrap()))
+            .collect();
+
+        // Handle sorting based on the flags
+        if sortkeys {
+            // Sort by canonical kmer lexicographically
+            kmer_count_pairs.par_sort_by_key(|&(kmer, _)| kmer.clone());
+        } else if sortcounts {
+            // Sort by count, secondary sort by kmer
+            kmer_count_pairs.par_sort_by(|&(kmer1, count1), &(kmer2, count2)| {
+                count1.cmp(count2).then_with(|| kmer1.cmp(kmer2))
+            });
+        }
+        // If both sortcounts and sortkeys are false, no sorting is done.
+
+        // If a file is provided, write to the file
+        if let Some(filepath) = file {
+            let f = File::create(filepath)?;
+            let mut writer = BufWriter::new(f);
+
+            // Write each kmer:count pair to the file
+            for (kmer, count) in kmer_count_pairs {
+                writeln!(writer, "{}\t{}", kmer, count)?;
+            }
+
+            writer.flush()?; // Ensure all data is written to the file
+            Ok(vec![]) // Return an empty vector when writing to a file
+        } else {
+            // Convert the vector of references to owned values
+            let result: Vec<(String, u64)> = kmer_count_pairs
+                .into_par_iter() // Use rayon for parallel conversion
+                .map(|(kmer, &count)| (kmer.clone(), count))
+                .collect();
+
+            // Return the vector of (kmer, count) tuples
+            Ok(result)
+        }
+    }
+
     /// Calculates the frequency histogram for k-mer counts
     /// Returns a vector of tuples (frequency, count), where 'frequency' is
     /// the observed number of times a k-mer count occurred and 'count' is
