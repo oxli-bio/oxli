@@ -10,7 +10,7 @@ use anyhow::{anyhow, Result};
 use log::debug;
 use niffler::compression::Format;
 use niffler::get_writer;
-use pyo3::exceptions::{PyIOError, PyValueError};
+use pyo3::exceptions::{PyIOError, PyKeyError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::PyResult;
 use rayon::prelude::*;
@@ -30,27 +30,32 @@ struct KmerCountTable {
     pub ksize: u8,
     version: String,
     consumed: u64,
+    store_kmers: bool, // Store hash:kmer mapping if true
+    hash_to_kmer: Option<HashMap<u64, String>>,
 }
 
 #[pymethods]
-/// Methods on KmerCountTable.
 impl KmerCountTable {
+    /// Constructor for KmerCountTable
     #[new]
-    #[pyo3(signature = (ksize))]
-    pub fn new(ksize: u8) -> Self {
+    #[pyo3(signature = (ksize, store_kmers=false))]
+    pub fn new(ksize: u8, store_kmers: bool) -> Self {
+        // Optional init HashMap for tracking hash:kmer pairs
+        let hash_to_kmer = if store_kmers {
+            Some(HashMap::new())
+        } else {
+            None
+        };
+        // Init new KmerCountTable
         Self {
             counts: HashMap::new(),
             ksize,
             version: VERSION.to_string(), // Initialize the version field
             consumed: 0,                  // Initialize the total sequence length tracker
+            store_kmers,
+            hash_to_kmer,
         }
     }
-
-    // TODO: Optionally store hash:kmer pair when counting a new kmer
-    // Modify KmerCountTable to optionally store map of hash:kmer
-    // Modify SeqToHashes to return canonical kmer & hash
-
-    // TODO: Add function to get canonical kmer using hash key
 
     /// Turn a k-mer into a hashval.
     pub fn hash_kmer(&self, kmer: String) -> Result<u64> {
@@ -71,11 +76,65 @@ impl KmerCountTable {
         }
     }
 
+    /// Unhash function to retrieve the canonical kmer for a given hash
+    pub fn unhash(&self, hash: u64) -> PyResult<String> {
+        if self.store_kmers {
+            if let Some(kmer) = self.hash_to_kmer.as_ref().unwrap().get(&hash) {
+                return Ok(kmer.clone());
+            } else {
+                // Raise KeyError if hash does not exist
+                let msg = format!("Warning: Hash {} not found in table.", hash);
+                Err(PyKeyError::new_err(msg))
+            }
+        } else {
+            // Raise an error if store_kmers is false
+            Err(PyValueError::new_err("K-mer storage is not enabled."))
+        }
+    }
+
     /// Increment the count of a hashval by 1.
     pub fn count_hash(&mut self, hashval: u64) -> u64 {
         let count = self.counts.entry(hashval).or_insert(0);
         *count += 1;
         *count
+    }
+
+    /// Return the canonical form of a k-mer: the lexicographically smaller of the k-mer or its reverse complement.
+    fn canon(&self, kmer: &str) -> PyResult<String> {
+        // Check if the k-mer length matches the table ksize
+        if kmer.len() != self.ksize as usize {
+            return Err(PyValueError::new_err(
+                "kmer size does not match count table ksize",
+            ));
+        }
+
+        // Convert k-mer to uppercase
+        let kmer_upper = kmer.to_uppercase();
+
+        // Ensure k-mer contains only valid DNA characters
+        if !kmer_upper.chars().all(|c| "ATCG".contains(c)) {
+            return Err(PyValueError::new_err("kmer contains invalid characters"));
+        }
+
+        // Compute the reverse complement
+        let rev_comp: String = kmer_upper
+            .chars()
+            .rev()
+            .map(|c| match c {
+                'A' => 'T',
+                'T' => 'A',
+                'C' => 'G',
+                'G' => 'C',
+                _ => c, // This should not happen due to earlier validation
+            })
+            .collect();
+
+        // Return the lexicographically smaller of kmer or its reverse complement
+        if kmer_upper <= rev_comp {
+            Ok(kmer_upper)
+        } else {
+            Ok(rev_comp)
+        }
     }
 
     /// Increment the count of a k-mer by 1.
@@ -85,10 +144,21 @@ impl KmerCountTable {
                 "kmer size does not match count table ksize",
             ))
         } else {
-            self.consumed += kmer.len() as u64;
-            let hashval = self.hash_kmer(kmer)?;
-            let count = self.count_hash(hashval);
-            Ok(count)
+            let hashval = self.hash_kmer(kmer.clone())?; // Clone the kmer before passing it to hash_kmer
+            let count = self.count_hash(hashval); // count with count_hash() function, return tally
+            self.consumed += kmer.len() as u64; // Add kmer len to total consumed bases
+
+            if self.store_kmers {
+                // Get the canonical k-mer
+                let canonical_kmer = self.canon(&kmer)?;
+                // Optional: Store hash:kmer pair
+                self.hash_to_kmer
+                    .as_mut()
+                    .unwrap()
+                    .insert(hashval, canonical_kmer);
+            }
+
+            Ok(count) // Return the current total count for the hash
         }
     }
 
@@ -397,35 +467,65 @@ impl KmerCountTable {
     // exit with error.
     #[pyo3(signature = (seq, skip_bad_kmers=true))]
     pub fn consume(&mut self, seq: String, skip_bad_kmers: bool) -> PyResult<u64> {
-        let hashes = SeqToHashes::new(
-            seq.as_bytes(),
-            self.ksize.into(),
-            skip_bad_kmers,
-            false,
-            HashFunctions::Murmur64Dna,
-            42,
-        );
-
+        // Incoming seq len
+        let new_len = seq.len();
+        // Init tally for consumed kmers
         let mut n = 0;
-        for hash_value in hashes {
-            // eprintln!("hash_value: {:?}", hash_value);
-            match hash_value {
-                Ok(0) => continue,
-                Ok(x) => {
-                    self.count_hash(x);
-                    ()
-                }
-                Err(_) => {
-                    let msg = format!("bad k-mer encountered at position {}", n);
-                    return Err(PyValueError::new_err(msg));
+        // If store_kmers is true, then count & log hash:kmer pairs
+        if self.store_kmers {
+            // Create an iterator for (canonical_kmer, hash) pairs
+            let mut iter = KmersAndHashesIter::new(seq, self.ksize as usize, skip_bad_kmers);
+
+            // Iterate over the k-mers and their hashes
+            while let Some(result) = iter.next() {
+                match result {
+                    Ok((kmer, hash)) => {
+                        if hash != 0 {
+                            // Insert hash:kmer pair into the hashmap
+                            self.hash_to_kmer
+                                .as_mut()
+                                .unwrap()
+                                .insert(hash, kmer.clone());
+                            // Increment the count for the hash
+                            *self.counts.entry(hash).or_insert(0) += 1;
+                            // Tally kmers added
+                            n += 1;
+                        }
+                    }
+                    Err(e) => return Err(e),
                 }
             }
+        } else {
+            // Else, hash and count kmers as usual
+            let hashes = SeqToHashes::new(
+                seq.as_bytes(),
+                self.ksize.into(),
+                skip_bad_kmers,
+                false,
+                HashFunctions::Murmur64Dna,
+                42,
+            );
 
-            n += 1;
+            for hash_value in hashes {
+                // eprintln!("hash_value: {:?}", hash_value);
+                match hash_value {
+                    Ok(0) => continue,
+                    Ok(x) => {
+                        self.count_hash(x);
+                        ()
+                    }
+                    Err(_) => {
+                        let msg = format!("bad k-mer encountered at position {}", n);
+                        return Err(PyValueError::new_err(msg));
+                    }
+                }
+
+                n += 1;
+            }
         }
 
         // Update the total sequence consumed tracker
-        self.consumed += seq.len() as u64;
+        self.consumed += new_len as u64;
 
         Ok(n)
     }
@@ -681,7 +781,7 @@ impl Iterator for KmersAndHashesIter {
             } else {
                 // If the hash is 0, handle based on `skip_bad_kmers`
                 // Prepare msg identifying bad kmer
-                let msg = format!("bad k-mer at position {}: {}", start, substr);
+                let msg = format!("bad k-mer at position {}: {}", start + 1, substr);
                 if self.skip_bad_kmers {
                     // Print a message and skip adding the bad k-mer to the result
                     eprintln!("{}", msg);
@@ -694,7 +794,7 @@ impl Iterator for KmersAndHashesIter {
             }
         } else {
             // If error raised by SeqToHashes
-            let msg = format!("bad k-mer at position {}: {}", start, substr);
+            let msg = format!("bad k-mer at position {}: {}", start + 1, substr);
             Some(Err(PyValueError::new_err(msg)))
         }
     }
