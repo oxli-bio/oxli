@@ -504,6 +504,7 @@ impl KmerCountTable {
         Ok(())
     }
 
+    #[pyo3(signature = (seq, skip_bad_kmers=true))]
     pub fn kmers_and_hashes(
         &self,
         seq: String,
@@ -620,7 +621,7 @@ impl KmersAndHashesIter {
         let hasher = SeqToHashes::new(
             &seqb,
             ksize.into(),
-            skip_bad_kmers,
+            true,  // Set force to true, bad kmers will emit hash=0 instead of killing process
             false, // Other flags, e.g., reverse complement
             HashFunctions::Murmur64Dna,
             42, // Seed for hashing
@@ -665,13 +666,9 @@ impl Iterator for KmersAndHashesIter {
         // Increment position for the next k-mer
         self.pos += 1;
 
-        // Handle hash value logic (similar to original function)
-        // Three options:
-        // * good kmer, all is well, store canonical k-mer and hashval;
-        // * bad k-mer allowed by skip_bad_kmers, and signaled by
-        //   hashval == 0): return empty string & 0;
-        // * bad k-mer not allowed, raise error
+        // Handle hash value logic
         if let Ok(hashval) = hashval {
+            // Good kmer, all is well, store canonical k-mer and hashval;
             if hashval > 0 {
                 // Select the canonical k-mer (lexicographically smaller between forward and reverse complement)
                 let canonical_kmer = if substr < substr_rc {
@@ -679,20 +676,24 @@ impl Iterator for KmersAndHashesIter {
                 } else {
                     substr_rc
                 };
+                // If vaild hash, return (canonical_kmer,hashval) tuple
                 Some(Ok((canonical_kmer.to_string(), hashval)))
             } else {
-                // Use the `skip_bad_kmers` flag here to nix unused warning.
-                // TODO: Decide what to do about bad kmers.
+                // If the hash is 0, handle based on `skip_bad_kmers`
+                // Prepare msg identifying bad kmer
+                let msg = format!("bad k-mer at position {}: {}", start, substr);
                 if self.skip_bad_kmers {
-                    // If the hash is 0, this is a bad k-mer
-                    Some(Ok(("".to_string(), 0)))
+                    // Print a message and skip adding the bad k-mer to the result
+                    eprintln!("{}", msg);
+                    self.next() // Recursively call `next()` to skip this k-mer
                 } else {
-                    // If an error occurs, return an error with the position and k-mer
-                    let msg = format!("bad k-mer at position {}: {}", start, substr);
-                    Some(Err(PyValueError::new_err(msg)))
+                    // If skip_bad_kmer is false, return an empty string and 0, but still print a message
+                    eprintln!("{}", msg);
+                    Some(Ok(("".to_string(), 0)))
                 }
             }
         } else {
+            // If error raised by SeqToHashes
             let msg = format!("bad k-mer at position {}: {}", start, substr);
             Some(Err(PyValueError::new_err(msg)))
         }
