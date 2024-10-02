@@ -1,5 +1,6 @@
-import oxli
 import pytest
+
+import oxli
 
 
 # Helper function, create tables.
@@ -76,7 +77,7 @@ def test_consume_bad_DNA():
     cg = oxli.KmerCountTable(4)
     seq = "ATCGGX"
     with pytest.raises(ValueError, match="bad k-mer encountered at position 2"):
-        cg.consume(seq, allow_bad_kmers=False)
+        cg.consume(seq, skip_bad_kmers=False)
 
 
 def test_consume_bad_DNA_2():
@@ -84,14 +85,14 @@ def test_consume_bad_DNA_2():
     cg = oxli.KmerCountTable(4)
     seq = "XATCGG"
     with pytest.raises(ValueError, match="bad k-mer encountered at position 0"):
-        cg.consume(seq, allow_bad_kmers=False)
+        cg.consume(seq, skip_bad_kmers=False)
 
 
 def test_consume_bad_DNA_ignore():
     # we can ignore bad DNA
     cg = oxli.KmerCountTable(4)
     seq = "XATCGG"
-    print(cg.consume(seq, allow_bad_kmers=True))
+    print(cg.consume(seq, skip_bad_kmers=True))
     assert cg.get("ATCG") == 1
     assert cg.get("TCGG") == 1
     assert cg.get("CCGA") == 1  # rc
