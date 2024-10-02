@@ -18,6 +18,11 @@ use serde::{Deserialize, Serialize};
 use sourmash::encodings::revcomp;
 use sourmash::encodings::HashFunctions;
 use sourmash::signature::SeqToHashes;
+// use sourmash::_hash_murmur;
+// use sourmash::sketch::nodegraph::Nodegraph;
+
+extern crate needletail;
+use needletail::{parse_fastx_file, FastxReader, Sequence};
 
 // Set version variable
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -396,9 +401,9 @@ impl KmerCountTable {
     // else if "false" consume kmers until a bad kmer in encountered, then
     // exit with error.
     #[pyo3(signature = (seq, skip_bad_kmers=true))]
-    pub fn consume(&mut self, seq: String, skip_bad_kmers: bool) -> PyResult<u64> {
+    fn consume_bytes(&mut self, seq: &[u8], skip_bad_kmers: bool) -> Result<u64> {
         let hashes = SeqToHashes::new(
-            seq.as_bytes(),
+            seq,
             self.ksize.into(),
             skip_bad_kmers,
             false,
@@ -417,7 +422,7 @@ impl KmerCountTable {
                 }
                 Err(_) => {
                     let msg = format!("bad k-mer encountered at position {}", n);
-                    return Err(PyValueError::new_err(msg));
+                    return Err(anyhow!(msg));
                 }
             }
 
@@ -427,6 +432,36 @@ impl KmerCountTable {
         // Update the total sequence consumed tracker
         self.consumed += seq.len() as u64;
 
+        Ok(n)
+    }
+
+    // Consume this DNA string. Return number of k-mers consumed.
+    #[pyo3(signature = (seq, skip_bad_kmers=true))]
+    pub fn consume(&mut self, seq: String, skip_bad_kmers: bool) -> PyResult<u64> {
+        match self.consume_bytes(seq.as_bytes(), skip_bad_kmers) {
+            Ok(n) => Ok(n),
+            Err(_) => {
+                //                    let msg = format!("bad k-mer encountered at position {}", n);
+                let msg = format!("invalid character in sequence");
+                Err(PyValueError::new_err(msg))
+            }
+        }
+    }
+
+    #[pyo3(signature = (filename, skip_bad_kmers=true))]
+    pub fn consume_file(&mut self, filename: String, skip_bad_kmers: bool) -> PyResult<u64> {
+        let mut n = 0;
+        let mut reader = parse_fastx_file(&filename).expect("foo");
+
+        while let Some(record) = reader.next() {
+            let record = record.expect("invalid record");
+            let normseq = record.normalize(false);
+
+            match self.consume_bytes(&normseq.into_owned(), skip_bad_kmers) {
+                Ok(n_kmers) => n = n + n_kmers,
+                Err(msg) => return Err(PyValueError::new_err("oops")),
+            }
+        }
         Ok(n)
     }
 
