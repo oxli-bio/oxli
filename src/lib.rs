@@ -406,13 +406,16 @@ impl KmerCountTable {
             ));
         }
 
-        // Collect canonical k-mers and their counts
+        // Collect canonical k-mers and their counts, skipping those not found in the counts table
         let mut kmer_count_pairs: Vec<(&String, &u64)> = self
             .hash_to_kmer
             .as_ref()
             .unwrap()
             .par_iter() // Use rayon for parallel iteration
-            .map(|(&hash, kmer)| (kmer, self.counts.get(&hash).unwrap()))
+            .filter_map(|(&hash, kmer)| {
+                // Use filter_map to only include (kmer, count) pairs where the count exists
+                self.counts.get(&hash).map(|count| (kmer, count))
+            })
             .collect();
 
         // Handle sorting based on the flags
