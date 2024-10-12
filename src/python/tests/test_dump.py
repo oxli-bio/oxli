@@ -301,3 +301,69 @@ def test_dump_kmers_empty_table(empty_kmer_count_table):
 
     # Cleanup
     remove(temp_file_path)
+
+def test_drop_removes_kmer(kmer_count_table):
+    """
+    Test that the `drop()` method correctly removes a k-mer using its string representation.
+    Verify that the `dump_kmers()` function returns the remaining (kmer, count) pairs.
+    """
+    # Drop the k-mer "AATT"
+    kmer_count_table.drop("AATT")
+
+    # Get the remaining k-mers using dump_kmers
+    remaining_kmers = kmer_count_table.dump_kmers()
+
+    # Check that "AATT" has been removed and other k-mers are still present
+    assert ("AATT", 1) not in remaining_kmers
+    assert ("AAAA", 2) in remaining_kmers
+    assert ("CCCC", 2) in remaining_kmers
+
+def test_drop_hash_removes_kmer(kmer_count_table):
+    """
+    Test that the `drop_hash()` method correctly removes a k-mer using its hash value.
+    Verify that the `dump_kmers()` function returns the remaining (kmer, count) pairs.
+    """
+    # Hash of "GGGG" is 73459868045630124
+    kmer_count_table.drop_hash(73459868045630124)
+
+    # Get the remaining k-mers using dump_kmers
+    remaining_kmers = kmer_count_table.dump_kmers()
+
+    # Check that "GGGG/CCCC" has been removed and other k-mers are still present
+    assert ("CCCC", 2) not in remaining_kmers
+    assert ("AAAA", 2) in remaining_kmers
+    assert ("AATT", 1) in remaining_kmers
+
+def test_mincut_removes_low_count_kmers(kmer_count_table):
+    """
+    Test that the `mincut()` method correctly removes k-mers with counts below a threshold.
+    Verify that the `dump_kmers()` function returns the remaining (kmer, count) pairs.
+    """
+    # Remove all k-mers with counts less than 2
+    kmer_count_table.mincut(2)
+
+    # Get the remaining k-mers using dump_kmers
+    remaining_kmers = kmer_count_table.dump_kmers()
+
+    # Check that only "GGGG/CCCC" remains because its count is 2
+    assert len(remaining_kmers) == 2
+    assert ("CCCC", 2) in remaining_kmers
+    assert ("AAAA", 2) in remaining_kmers
+    assert ("AATT", 1) not in remaining_kmers
+
+def test_maxcut_removes_high_count_kmers(kmer_count_table):
+    """
+    Test that the `maxcut()` method correctly removes k-mers with counts above a threshold.
+    Verify that the `dump_kmers()` function returns the remaining (kmer, count) pairs.
+    """
+    # Remove all k-mers with counts greater than 1
+    kmer_count_table.maxcut(1)
+
+    # Get the remaining k-mers using dump_kmers
+    remaining_kmers = kmer_count_table.dump_kmers()
+
+    # Check that "GGGG/CCCC" has been removed and other k-mers with count 1 remain
+    assert len(remaining_kmers) == 1
+    assert ("CCCC", 2) not in remaining_kmers
+    assert ("AAAA", 2) not in remaining_kmers
+    assert ("AATT", 1) in remaining_kmers
