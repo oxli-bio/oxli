@@ -302,6 +302,7 @@ def test_dump_kmers_empty_table(empty_kmer_count_table):
     # Cleanup
     remove(temp_file_path)
 
+
 def test_drop_removes_kmer(kmer_count_table):
     """
     Test that the `drop()` method correctly removes a k-mer using its string representation.
@@ -317,6 +318,7 @@ def test_drop_removes_kmer(kmer_count_table):
     assert ("AATT", 1) not in remaining_kmers
     assert ("AAAA", 2) in remaining_kmers
     assert ("CCCC", 2) in remaining_kmers
+
 
 def test_drop_hash_removes_kmer(kmer_count_table):
     """
@@ -334,6 +336,7 @@ def test_drop_hash_removes_kmer(kmer_count_table):
     assert ("AAAA", 2) in remaining_kmers
     assert ("AATT", 1) in remaining_kmers
 
+
 def test_mincut_removes_low_count_kmers(kmer_count_table):
     """
     Test that the `mincut()` method correctly removes k-mers with counts below a threshold.
@@ -350,6 +353,7 @@ def test_mincut_removes_low_count_kmers(kmer_count_table):
     assert ("CCCC", 2) in remaining_kmers
     assert ("AAAA", 2) in remaining_kmers
     assert ("AATT", 1) not in remaining_kmers
+
 
 def test_maxcut_removes_high_count_kmers(kmer_count_table):
     """
