@@ -2,6 +2,7 @@ name: Ruff Formatting
 on: [pull_request]
 jobs:
   ruff:
+    if: ${{ github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     permissions:
       # Give the default GITHUB_TOKEN write permission to commit and push the changed files.
