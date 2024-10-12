@@ -5,12 +5,13 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       # Give the default GITHUB_TOKEN write permission to commit and push the changed files.
-      contents: write
+      contents: write # Allows reading and writing repository contents (e.g., commits)
+      pull-requests: write # Allows reading and writing pull requests
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
-          token: ${{ secrets.ACTION_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
       - uses: chartboost/ruff-action@v1
         with:
           src: './src/python'
