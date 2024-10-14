@@ -143,7 +143,7 @@ def test_add_multiple_times():
     assert table1.sum_counts == 3
 
 
-#def test_add_self():
+# def test_add_self():
 #    """Test adding a KmerCountTable to itself."""
 #    table = KmerCountTable(5)
 #    table.consume("ATGCATGCA")
