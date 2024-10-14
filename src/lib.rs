@@ -798,6 +798,10 @@ impl KmerCountTable {
         // Apply updates sequentially
         for (hash, count) in updates {
             let current_count = self.counts.entry(hash).or_insert(0);
+            if *current_count == 0 {
+                // This is a new key
+                new_keys_added.fetch_add(1, Ordering::Relaxed);
+            }
             *current_count += count;
             total_counts_added.fetch_add(count, Ordering::Relaxed);
         }
@@ -818,15 +822,11 @@ impl KmerCountTable {
                     .collect();
 
                 for (hash, kmer) in new_kmers {
-                    if self
-                        .hash_to_kmer
+                    self.hash_to_kmer
                         .as_mut()
                         .unwrap()
-                        .insert(hash, kmer)
-                        .is_none()
-                    {
-                        new_keys_added.fetch_add(1, Ordering::Relaxed);
-                    }
+                        .entry(hash)
+                        .or_insert(kmer);
                 }
             } else {
                 // Warning: incoming table doesn't store kmers
@@ -840,12 +840,10 @@ impl KmerCountTable {
 
         // Print summary
         println!("Added {} k-mer counts to the table", total_added);
-        if self.store_kmers {
-            println!("Added {} new keys to hash_to_kmer table", new_keys);
-        }
+        println!("Added {} new keys to the table", new_keys);
 
         Ok((total_added, new_keys))
-    }
+        }
 }
 
 #[pyclass]
