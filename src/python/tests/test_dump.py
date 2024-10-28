@@ -9,7 +9,7 @@ from oxli import KmerCountTable
 @pytest.fixture
 def kmer_count_table():
     """Fixture to set up a KmerCountTable instance with sample data."""
-    kct = KmerCountTable(ksize=4)
+    kct = KmerCountTable(ksize=4, store_kmers=True)
     kct.count("AAAA")  # 17832910516274425539
     kct.count("TTTT")  # 17832910516274425539
     kct.count("AATT")  # 382727017318141683
@@ -21,7 +21,7 @@ def kmer_count_table():
 @pytest.fixture
 def empty_kmer_count_table():
     """Fixture to set up an empty KmerCountTable instance."""
-    return KmerCountTable(ksize=4)
+    return KmerCountTable(ksize=4, store_kmers=True)
 
 
 def test_dump_conflicting_sort_options(kmer_count_table):
@@ -165,3 +165,209 @@ def test_dump_hash_empty_table(empty_kmer_count_table):
 
     # Cleanup
     remove(temp_file_path)
+
+
+# Tests for dump_kmers()
+
+
+def test_dump_kmers_conflicting_sort_options(kmer_count_table):
+    """Test that passing both sortcounts=True and sortkeys=True raises a ValueError."""
+    with pytest.raises(
+        ValueError, match="Cannot sort by both counts and kmers at the same time."
+    ):
+        kmer_count_table.dump_kmers(file=None, sortcounts=True, sortkeys=True)
+
+
+def test_dump_kmers_sortcounts_with_ties(kmer_count_table):
+    """Test the dump_kmers function with sortcounts=True, ensuring it handles ties in counts."""
+    result = kmer_count_table.dump_kmers(file=None, sortcounts=True, sortkeys=False)
+
+    # Expected output sorted by count, with secondary sorting by kmer for ties
+    expected = [
+        ("AATT", 1),
+        (
+            "AAAA",
+            2,
+        ),  # 'AAAA'/'TTTT' is tied with 'GGGG / CCCC' on counts, 'AAAA' is lexicographically smaller
+        ("CCCC", 2),
+    ]
+
+    assert result == expected, f"Expected {expected}, but got {result}"
+
+
+def test_dump_kmers_single_kmer():
+    """Test the dump_kmers function with only a single k-mer counted."""
+    kct = KmerCountTable(ksize=4, store_kmers=True)
+    kct.count("AAAA")  # Canonical kmer: 'AAAA'
+
+    result = kct.dump_kmers(file=None, sortcounts=True, sortkeys=False)
+
+    expected = [("AAAA", 1)]
+
+    assert result == expected, f"Expected {expected}, but got {result}"
+
+
+def test_dump_kmers_write_to_file(kmer_count_table):
+    """Test the dump_kmers function when writing to a file.
+
+    This test checks if the function correctly writes the kmer:count pairs to a file.
+    """
+    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+        temp_file_path = temp_file.name
+
+    kmer_count_table.dump_kmers(file=temp_file_path, sortcounts=True, sortkeys=False)
+
+    with open(temp_file_path, "r") as f:
+        lines = f.readlines()
+
+    # Expected output sorted by count then kmer (default behavior)
+    expected_lines = [
+        f"AATT\t1\n",
+        f"AAAA\t2\n",  # 'AAAA'/'TTTT'
+        f"CCCC\t2\n",
+    ]
+
+    assert lines == expected_lines, f"Expected {expected_lines}, but got {lines}"
+
+    # Cleanup
+    remove(temp_file_path)
+
+
+def test_dump_kmers_write_to_file_sortkeys(kmer_count_table):
+    """Test the dump_kmers function with sortkeys=True when writing to a file."""
+    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+        temp_file_path = temp_file.name
+
+    kmer_count_table.dump_kmers(file=temp_file_path, sortkeys=True)
+
+    with open(temp_file_path, "r") as f:
+        lines = f.readlines()
+
+    # Expected output sorted by canonical kmers
+    expected_lines = [
+        f"AAAA\t2\n",  # 'AAAA'/'TTTT'
+        f"AATT\t1\n",
+        f"CCCC\t2\n",
+    ]
+
+    assert lines == expected_lines, f"Expected {expected_lines}, but got {lines}"
+
+    # Cleanup
+    remove(temp_file_path)
+
+
+def test_dump_kmers_sortkeys(kmer_count_table):
+    """Test the dump_kmers function with sortkeys=True.
+
+    This test verifies if the function sorts by canonical k-mers when `sortkeys` is set to True.
+    """
+    result = kmer_count_table.dump_kmers(file=None, sortkeys=True)
+
+    # Expected output sorted by canonical kmer
+    expected = [
+        ("AAAA", 2),  # 'AAAA'/'TTTT'
+        ("AATT", 1),
+        ("CCCC", 2),
+    ]
+
+    assert result == expected, f"Expected {expected}, but got {result}"
+
+
+def test_dump_kmers_invalid_file_path(kmer_count_table):
+    """Test that passing an invalid file path raises an error."""
+    with pytest.raises(OSError):
+        kmer_count_table.dump_kmers(file="", sortkeys=True)
+
+
+def test_dump_kmers_empty_table(empty_kmer_count_table):
+    """Test the dump_kmers function on an empty KmerCountTable.
+
+    This test checks that the function handles an empty table correctly.
+    """
+    # Test that calling dump_kmers without file returns an empty list
+    result = empty_kmer_count_table.dump_kmers(file=None, sortkeys=False)
+    assert result == [], "Expected an empty list from an empty KmerCountTable"
+
+    # Test that calling dump_kmers with a file writes nothing to the file
+    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+        temp_file_path = temp_file.name
+
+    empty_kmer_count_table.dump_kmers(file=temp_file_path, sortkeys=False)
+
+    with open(temp_file_path, "r") as f:
+        lines = f.readlines()
+
+    assert lines == [], "Expected an empty file for an empty KmerCountTable"
+
+    # Cleanup
+    remove(temp_file_path)
+
+
+def test_drop_removes_kmer(kmer_count_table):
+    """
+    Test that the `drop()` method correctly removes a k-mer using its string representation.
+    Verify that the `dump_kmers()` function returns the remaining (kmer, count) pairs.
+    """
+    # Drop the k-mer "AATT"
+    kmer_count_table.drop("AATT")
+
+    # Get the remaining k-mers using dump_kmers
+    remaining_kmers = kmer_count_table.dump_kmers()
+
+    # Check that "AATT" has been removed and other k-mers are still present
+    assert ("AATT", 1) not in remaining_kmers
+    assert ("AAAA", 2) in remaining_kmers
+    assert ("CCCC", 2) in remaining_kmers
+
+
+def test_drop_hash_removes_kmer(kmer_count_table):
+    """
+    Test that the `drop_hash()` method correctly removes a k-mer using its hash value.
+    Verify that the `dump_kmers()` function returns the remaining (kmer, count) pairs.
+    """
+    # Hash of "GGGG" is 73459868045630124
+    kmer_count_table.drop_hash(73459868045630124)
+
+    # Get the remaining k-mers using dump_kmers
+    remaining_kmers = kmer_count_table.dump_kmers()
+
+    # Check that "GGGG/CCCC" has been removed and other k-mers are still present
+    assert ("CCCC", 2) not in remaining_kmers
+    assert ("AAAA", 2) in remaining_kmers
+    assert ("AATT", 1) in remaining_kmers
+
+
+def test_mincut_removes_low_count_kmers(kmer_count_table):
+    """
+    Test that the `mincut()` method correctly removes k-mers with counts below a threshold.
+    Verify that the `dump_kmers()` function returns the remaining (kmer, count) pairs.
+    """
+    # Remove all k-mers with counts less than 2
+    kmer_count_table.mincut(2)
+
+    # Get the remaining k-mers using dump_kmers
+    remaining_kmers = kmer_count_table.dump_kmers()
+
+    # Check that only "GGGG/CCCC" remains because its count is 2
+    assert len(remaining_kmers) == 2
+    assert ("CCCC", 2) in remaining_kmers
+    assert ("AAAA", 2) in remaining_kmers
+    assert ("AATT", 1) not in remaining_kmers
+
+
+def test_maxcut_removes_high_count_kmers(kmer_count_table):
+    """
+    Test that the `maxcut()` method correctly removes k-mers with counts above a threshold.
+    Verify that the `dump_kmers()` function returns the remaining (kmer, count) pairs.
+    """
+    # Remove all k-mers with counts greater than 1
+    kmer_count_table.maxcut(1)
+
+    # Get the remaining k-mers using dump_kmers
+    remaining_kmers = kmer_count_table.dump_kmers()
+
+    # Check that "GGGG/CCCC" has been removed and other k-mers with count 1 remain
+    assert len(remaining_kmers) == 1
+    assert ("CCCC", 2) not in remaining_kmers
+    assert ("AAAA", 2) not in remaining_kmers
+    assert ("AATT", 1) in remaining_kmers
