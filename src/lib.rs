@@ -833,10 +833,6 @@ impl Iterator for KmersAndHashesIter {
 
         // Extract the current k-mer and its reverse complement
         let substr = &self.seq[start..start + ksize];
-        // let substr_rc = &self.seq_rc[start..start+ksize]
-        // CTB: this calculates RC each time, instead of doing so
-        // using a sliding window. It's easy and works, so I'm
-        // starting here :).
         let substr_rc = &self.seq_rc[rpos..rpos+ksize];
 
         // Get the next hash value from the hasher
