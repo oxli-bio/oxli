@@ -1,4 +1,5 @@
 // Standard library imports
+use std::cmp::max;
 use std::collections::hash_map::IntoIter;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
@@ -616,29 +617,40 @@ impl KmerCountTable {
         chunk_size: u64,
         skip_bad_kmers: bool,
     ) -> PyResult<u64> {
+        let ksize: u64 = self.ksize.into();
+        let chunk_size = max(chunk_size, ksize);
+
         // figure out the number of chunks, given the desired chunk size.
         let seq_len = seq.len() as u64;
         let mut num_chunks: u64 = seq_len / chunk_size;
 
-        let mut final_chunk: bool = false;
-        if seq_len % chunk_size > 0 {
-            num_chunks = num_chunks - 1;
-            final_chunk = true;
-        }
-
         // build a vec of (start, end) pairs.
         let mut coord_pairs: Vec<(u64, u64)> = vec![];
 
-        for i in 0..num_chunks {
-            let start = i * chunk_size;
-            let end = (i + 1) * chunk_size;
-            coord_pairs.push((start, end));
-        }
-        if final_chunk {
-            // collect up the remainder
-            coord_pairs.push((num_chunks * chunk_size, seq_len));
+        // do entire sequence in one? all good.
+        if num_chunks <= 1 {
+            coord_pairs.push((0, seq_len));
+        } else {
+            // more than one chunk: do more complicated stuff :).
+            let mut final_chunk: bool = false;
+            if seq_len % chunk_size > 0 {
+                num_chunks = num_chunks - 1;
+                final_chunk = true;
+            }
+
+            for i in 0..num_chunks {
+                let start = i * chunk_size;
+                let end = (i + 1) * chunk_size + ksize - 1;
+                coord_pairs.push((start, end));
+            }
+            if final_chunk {
+                eprintln!("final chunk!");
+                // collect up the remainder
+                coord_pairs.push((num_chunks * chunk_size, seq_len));
+            }
         }
 
+        eprintln!("seq: {}", seq);
         eprintln!("chunk size: {}, num chunks: {}", chunk_size, num_chunks);
         eprintln!("{:?}", coord_pairs);
 
