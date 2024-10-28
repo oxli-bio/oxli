@@ -779,7 +779,7 @@ impl KmerCountTableIterator {
 
 pub struct KmersAndHashesIter {
     seq: String,          // The sequence to iterate over
-    seqb: Vec<u8>,        // Sequence bytes
+    seq_rc: String,       // reverse complement sequence
     ksize: usize,         // K-mer size
     pos: usize,           // Current position in the sequence
     end: usize,           // The end position for k-mer extraction
@@ -791,8 +791,12 @@ impl KmersAndHashesIter {
     pub fn new(seq: String, ksize: usize, skip_bad_kmers: bool) -> Self {
         let seq = seq.to_ascii_uppercase(); // Ensure uppercase for uniformity
         let seqb = seq.as_bytes().to_vec(); // Convert to bytes for hashing
-        let end = seq.len() - ksize + 1; // Calculate the endpoint for k-mer extraction
+        let seqb_rc = revcomp(&seqb);
+        let seq_rc = std::str::from_utf8(&seqb_rc)
+            .expect("invalid utf-8 sequence for rev comp")
+            .to_string();
 
+        let end = seq.len() - ksize + 1; // Calculate the endpoint for k-mer extraction
         let hasher = SeqToHashes::new(
             &seqb,
             ksize.into(),
@@ -804,7 +808,7 @@ impl KmersAndHashesIter {
 
         Self {
             seq,
-            seqb,
+            seq_rc,
             ksize,
             pos: 0, // Start at the beginning of the sequence
             end,
@@ -825,15 +829,11 @@ impl Iterator for KmersAndHashesIter {
 
         let start = self.pos;
         let ksize = self.ksize;
+        let rpos = self.end - start - 1;
 
         // Extract the current k-mer and its reverse complement
         let substr = &self.seq[start..start + ksize];
-        // CTB: this calculates RC each time, instead of doing so
-        // using a sliding window. It's easy and works, so I'm
-        // starting here :).
-        let substr_b_rc = revcomp(&self.seqb[start..start + ksize]);
-        let substr_rc =
-            std::str::from_utf8(&substr_b_rc).expect("invalid utf-8 sequence for rev comp");
+        let substr_rc = &self.seq_rc[rpos..rpos + ksize];
 
         // Get the next hash value from the hasher
         let hashval = self.hasher.next().expect("should not run out of hashes");
@@ -851,7 +851,7 @@ impl Iterator for KmersAndHashesIter {
                 } else {
                     substr_rc
                 };
-                // If vaild hash, return (canonical_kmer,hashval) tuple
+                // If valid hash, return (canonical_kmer,hashval) tuple
                 Some(Ok((canonical_kmer.to_string(), hashval)))
             } else {
                 // If the hash is 0, handle based on `skip_bad_kmers`
