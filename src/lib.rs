@@ -34,23 +34,6 @@ struct KmerCountTable {
     hash_to_kmer: Option<HashMap<u64, String>>,
 }
 
-// CTB: convert to just a closure.
-fn _do_consume(
-    seq: &str,
-    start: usize,
-    end: usize,
-    ksize: u8,
-    store_kmers: bool,
-    skip_bad_kmers: bool,
-) -> Option<KmerCountTable> {
-    let mut t = KmerCountTable::new(ksize, store_kmers);
-
-    let subseq = &seq[start..end];
-    t._consume(subseq, skip_bad_kmers)
-        .expect("fail in sub consume");
-    Some(t)
-}
-
 #[pymethods]
 impl KmerCountTable {
     /// Constructor for KmerCountTable
@@ -651,32 +634,28 @@ impl KmerCountTable {
             let end = (i + 1) * chunk_size;
             coord_pairs.push((start, end));
         }
-        if final_chunk {
+        if final_chunk {        // collect up the remainder
             coord_pairs.push((num_chunks * chunk_size, seq_len));
         }
 
         eprintln!("chunk size: {}, num chunks: {}", chunk_size, num_chunks);
         eprintln!("{:?}", coord_pairs);
 
-        // create reference to seq
-        let s = seq.as_str();
-
         // build KmerCountTables in parallel
         let tables: Vec<KmerCountTable> = coord_pairs
             .par_iter()
-            .filter_map(|(start, end)| {
-                _do_consume(
-                    s,
-                    *start as usize,
-                    *end as usize,
-                    self.ksize,
-                    self.store_kmers,
-                    skip_bad_kmers,
-                )
+            .map(|(start, end)| {
+                let mut t = KmerCountTable::new(self.ksize, self.store_kmers);
+
+                let start = *start as usize;
+                let end = *end as usize;
+                t._consume(&seq[start..end], skip_bad_kmers)
+                    .expect("fail in sub consume");
+                t
             })
             .collect();
 
-        // now, merge the tables.
+        // now, merge the tables in serial.
         let mut total_consumed = 0;
         for t in tables.into_iter() {
             self.counts.extend(t.counts);
