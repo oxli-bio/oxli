@@ -714,11 +714,17 @@ impl KmerCountTable {
     }
 
     fn _merge(&mut self, other: &KmerCountTable) -> () {
-        self.counts.extend(other.counts.clone());
+        for (hashval, count) in other.counts.iter() {
+            let this_count = self.counts.entry(*hashval).or_insert(0);
+            *this_count += count;
+        }
+
         if self.store_kmers {
             let t_hash_to_kmer = other.hash_to_kmer.clone().expect("hash_to_kmer is None!?");
 
             let my_hash_to_kmer = self.hash_to_kmer.as_mut().unwrap();
+
+            // here, this will replace, but that's ok.
             my_hash_to_kmer.extend(t_hash_to_kmer);
         }
         ()
