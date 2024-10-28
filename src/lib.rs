@@ -650,8 +650,6 @@ impl KmerCountTable {
             }
         }
 
-        eprintln!("seq: {}", seq);
-        eprintln!("chunk size: {}, num chunks: {}", chunk_size, num_chunks);
         eprintln!("{:?}", coord_pairs);
 
         // build KmerCountTables in parallel
@@ -670,15 +668,14 @@ impl KmerCountTable {
 
         // now, merge the tables in serial.
         let mut total_consumed = 0;
-        for t in tables.into_iter() {
-            self.counts.extend(t.counts);
+        let mut i = 0;
 
-            if self.store_kmers {
-                let my_hash_to_kmer = self.hash_to_kmer.as_mut().unwrap();
-                let t_hash_to_kmer = t.hash_to_kmer.expect("hash_to_kmer is None!?");
-                my_hash_to_kmer.extend(t_hash_to_kmer);
-            }
+        for t in tables.into_iter() {
+            eprintln!("merge... {}", i);
+            i += 1;
+
             total_consumed += t.consumed;
+            self._merge(&t);
         }
         self.consumed = total_consumed;
 
@@ -714,6 +711,17 @@ impl KmerCountTable {
             .symmetric_difference(&other.hash_set())
             .cloned()
             .collect()
+    }
+
+    fn _merge(&mut self, other: &KmerCountTable) -> () {
+        self.counts.extend(other.counts.clone());
+        if self.store_kmers {
+            let t_hash_to_kmer = other.hash_to_kmer.clone().expect("hash_to_kmer is None!?");
+
+            let my_hash_to_kmer = self.hash_to_kmer.as_mut().unwrap();
+            my_hash_to_kmer.extend(t_hash_to_kmer);
+        }
+        ()
     }
 
     // Python dunder methods for set operations
