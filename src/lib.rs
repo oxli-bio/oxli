@@ -634,7 +634,8 @@ impl KmerCountTable {
             let end = (i + 1) * chunk_size;
             coord_pairs.push((start, end));
         }
-        if final_chunk {        // collect up the remainder
+        if final_chunk {
+            // collect up the remainder
             coord_pairs.push((num_chunks * chunk_size, seq_len));
         }
 
