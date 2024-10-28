@@ -778,7 +778,7 @@ impl KmerCountTableIterator {
 }
 
 pub struct KmersAndHashesIter {
-    seq: String,   // The sequence to iterate over
+    seq: String,          // The sequence to iterate over
     seq_rc: String,       // reverse complement sequence
     ksize: usize,         // K-mer size
     pos: usize,           // Current position in the sequence
@@ -833,7 +833,7 @@ impl Iterator for KmersAndHashesIter {
 
         // Extract the current k-mer and its reverse complement
         let substr = &self.seq[start..start + ksize];
-        let substr_rc = &self.seq_rc[rpos..rpos+ksize];
+        let substr_rc = &self.seq_rc[rpos..rpos + ksize];
 
         // Get the next hash value from the hasher
         let hashval = self.hasher.next().expect("should not run out of hashes");
