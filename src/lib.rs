@@ -546,6 +546,7 @@ impl KmerCountTable {
         self._consume(seq.as_str(), skip_bad_kmers)
     }
 
+    /// private internal function that does the consumption using references.
     fn _consume(&mut self, seq: &str, skip_bad_kmers: bool) -> PyResult<u64> {
         // Incoming seq len
         let new_len = seq.len();
@@ -675,7 +676,7 @@ impl KmerCountTable {
             i += 1;
 
             total_consumed += t.consumed;
-            self._merge(&t);
+            self._merge(t);
         }
         self.consumed = total_consumed;
 
@@ -711,23 +712,6 @@ impl KmerCountTable {
             .symmetric_difference(&other.hash_set())
             .cloned()
             .collect()
-    }
-
-    fn _merge(&mut self, other: &KmerCountTable) -> () {
-        for (hashval, count) in other.counts.iter() {
-            let this_count = self.counts.entry(*hashval).or_insert(0);
-            *this_count += count;
-        }
-
-        if self.store_kmers {
-            let t_hash_to_kmer = other.hash_to_kmer.clone().expect("hash_to_kmer is None!?");
-
-            let my_hash_to_kmer = self.hash_to_kmer.as_mut().unwrap();
-
-            // here, this will replace, but that's ok.
-            my_hash_to_kmer.extend(t_hash_to_kmer);
-        }
-        ()
     }
 
     // Python dunder methods for set operations
@@ -855,6 +839,27 @@ impl KmerCountTable {
 
         // Calculate and return cosine similarity.
         dot_product as f64 / (magnitude_self * magnitude_other)
+    }
+}
+
+
+// non-Python accessible methods
+impl KmerCountTable {
+    fn _merge(&mut self, other: KmerCountTable) -> () {
+        for (hashval, count) in other.counts.iter() {
+            let this_count = self.counts.entry(*hashval).or_insert(0);
+            *this_count += count;
+        }
+
+        if self.store_kmers {
+            let t_hash_to_kmer = other.hash_to_kmer.clone().expect("hash_to_kmer is None!?");
+
+            let my_hash_to_kmer = self.hash_to_kmer.as_mut().unwrap();
+
+            // here, this will replace, but that's ok.
+            my_hash_to_kmer.extend(t_hash_to_kmer);
+        }
+        ()
     }
 }
 
