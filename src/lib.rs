@@ -33,6 +33,8 @@ struct KmerCountTable {
     consumed: u64,
     store_kmers: bool, // Store hash:kmer mapping if true
     hash_to_kmer: Option<HashMap<u64, String>>,
+    low_bound: u64,
+    high_bound: u64,
 }
 
 #[pymethods]
@@ -56,6 +58,8 @@ impl KmerCountTable {
             consumed: 0,                  // Initialize the total sequence length tracker
             store_kmers,
             hash_to_kmer,
+            low_bound: 0,
+            high_bound: u64::MAX,
         }
     }
 
@@ -96,9 +100,13 @@ impl KmerCountTable {
 
     /// Increment the count of a hashval by 1.
     pub fn count_hash(&mut self, hashval: u64) -> u64 {
-        let count = self.counts.entry(hashval).or_insert(0);
-        *count += 1;
-        *count
+        if hashval >= self.low_bound && hashval <= self.high_bound {
+            let count = self.counts.entry(hashval).or_insert(0);
+            *count += 1;
+            *count
+        } else {
+            0
+        }
     }
 
     /// Return the canonical form of a k-mer: the lexicographically smaller of the k-mer or its reverse complement.
@@ -567,7 +575,10 @@ impl KmerCountTable {
                             // Insert hash:kmer pair into the hashmap
                             hash_to_kmer.insert(hash, kmer);
                             // Increment the count for the hash
-                            *self.counts.entry(hash).or_insert(0) += 1;
+                            if hash >= self.low_bound && hash <= self.high_bound {
+                                let count = self.counts.entry(hash).or_insert(0);
+                                *count += 1;
+                            }
                             // Tally kmers added
                             n += 1;
                         }
@@ -667,11 +678,11 @@ impl KmerCountTable {
 
         // now, merge the tables in serial.
         let mut total_consumed = 0;
-        let mut i = 0;
+        // @CTB let mut i = 0;
 
         for t in tables.into_iter() {
             // @CTB eprintln!("merge... {}", i);
-            i += 1;
+            // i += 1i += 1;
 
             total_consumed += t.consumed;
             self._merge(t);
