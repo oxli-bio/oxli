@@ -47,6 +47,7 @@ impl KmerCountTable {
         } else {
             None
         };
+
         // Init new KmerCountTable
         Self {
             counts: HashMap::new(),
@@ -542,8 +543,8 @@ impl KmerCountTable {
     // else if "false" consume kmers until a bad kmer in encountered, then
     // exit with error.
     #[pyo3(signature = (seq, skip_bad_kmers=true))]
-    pub fn consume(&mut self, seq: String, skip_bad_kmers: bool) -> PyResult<u64> {
-        self._consume(seq.as_str(), skip_bad_kmers)
+    pub fn consume(&mut self, seq: &str, skip_bad_kmers: bool) -> PyResult<u64> {
+        self._consume(seq, skip_bad_kmers)
     }
 
     /// private internal function that does the consumption using references.
@@ -556,6 +557,7 @@ impl KmerCountTable {
         if self.store_kmers {
             // Create an iterator for (canonical_kmer, hash) pairs
             let mut iter = KmersAndHashesIter::new(seq, self.ksize as usize, skip_bad_kmers);
+            let hash_to_kmer = self.hash_to_kmer.as_mut().unwrap();
 
             // Iterate over the k-mers and their hashes
             while let Some(result) = iter.next() {
@@ -563,10 +565,7 @@ impl KmerCountTable {
                     Ok((kmer, hash)) => {
                         if hash != 0 {
                             // Insert hash:kmer pair into the hashmap
-                            self.hash_to_kmer
-                                .as_mut()
-                                .unwrap()
-                                .insert(hash, kmer.clone());
+                            hash_to_kmer.insert(hash, kmer);
                             // Increment the count for the hash
                             *self.counts.entry(hash).or_insert(0) += 1;
                             // Tally kmers added
@@ -588,7 +587,6 @@ impl KmerCountTable {
             );
 
             for hash_value in hashes {
-                // eprintln!("hash_value: {:?}", hash_value);
                 match hash_value {
                     Ok(0) => continue,
                     Ok(x) => {
@@ -614,7 +612,7 @@ impl KmerCountTable {
     #[pyo3(signature = (seq, chunk_size, skip_bad_kmers=true))]
     pub fn parallel_consume(
         &mut self,
-        seq: String,
+        seq: &str,
         chunk_size: u64,
         skip_bad_kmers: bool,
     ) -> PyResult<u64> {
@@ -645,13 +643,13 @@ impl KmerCountTable {
                 coord_pairs.push((start, end));
             }
             if final_chunk {
-                eprintln!("final chunk!");
+                // @CTB eprintln!("final chunk!");
                 // collect up the remainder
                 coord_pairs.push((num_chunks * chunk_size, seq_len));
             }
         }
 
-        eprintln!("{:?}", coord_pairs);
+        // @CTB eprintln!("{:?}", coord_pairs);
 
         // build KmerCountTables in parallel
         let tables: Vec<KmerCountTable> = coord_pairs
@@ -672,7 +670,7 @@ impl KmerCountTable {
         let mut i = 0;
 
         for t in tables.into_iter() {
-            eprintln!("merge... {}", i);
+            // @CTB eprintln!("merge... {}", i);
             i += 1;
 
             total_consumed += t.consumed;
@@ -845,11 +843,27 @@ impl KmerCountTable {
 
 // non-Python accessible methods
 impl KmerCountTable {
+    // merge two tables that may have overlapping k-mers.
     fn _merge(&mut self, other: KmerCountTable) -> () {
         for (hashval, count) in other.counts.iter() {
             let this_count = self.counts.entry(*hashval).or_insert(0);
             *this_count += count;
         }
+
+        if self.store_kmers {
+            let t_hash_to_kmer = other.hash_to_kmer.clone().expect("hash_to_kmer is None!?");
+
+            let my_hash_to_kmer = self.hash_to_kmer.as_mut().unwrap();
+
+            // here, this will replace, but that's ok.
+            my_hash_to_kmer.extend(t_hash_to_kmer);
+        }
+        ()
+    }
+
+    // merge two tables that have no overlapping k-mers.
+    fn _merge_nonoverlapping(&mut self, other: KmerCountTable) -> () {
+        self.counts.extend(other.counts);
 
         if self.store_kmers {
             let t_hash_to_kmer = other.hash_to_kmer.clone().expect("hash_to_kmer is None!?");
