@@ -692,6 +692,55 @@ impl KmerCountTable {
         Ok(total_consumed)
     }
 
+    #[pyo3(signature = (seq, num_splits, skip_bad_kmers=true))]
+    pub fn parallel_consume_div(
+        &mut self,
+        seq: &str,
+        num_splits: u64,
+        skip_bad_kmers: bool,
+    ) -> PyResult<u64> {
+        // figure out the number of bands, given the desired number of splits
+        let band_size = u64::MAX / num_splits - num_splits - 1;
+        let mut bound_pairs: Vec<(u64, u64)> = vec![];
+
+        let mut lower = 0;
+        let mut upper = band_size;
+
+        for _ in 0..num_splits-1 {
+            bound_pairs.push((lower, upper));
+            lower += band_size + 1;
+            upper = lower + band_size;
+        }
+        bound_pairs.push((lower, u64::MAX));
+
+        // build KmerCountTables in parallel
+        let tables: Vec<KmerCountTable> = bound_pairs
+            .par_iter()
+            .map(|(lower, upper)| {
+                let mut t = KmerCountTable::new(self.ksize, self.store_kmers);
+                t._set_lower_upper(*lower, *upper);
+                t._consume(&seq, skip_bad_kmers)
+                    .expect("fail in sub consume");
+                t
+            })
+            .collect();
+
+        // now, merge the tables in serial.
+        let mut total_consumed = 0;
+        // @CTB let mut i = 0;
+
+        for t in tables.into_iter() {
+            // @CTB eprintln!("merge... {}", i);
+            // i += 1i += 1;
+
+            total_consumed += t.consumed;
+            self._merge_nonoverlapping(t);
+        }
+        self.consumed = total_consumed;
+
+        Ok(total_consumed)
+    }
+
     // Helper method to get hash set of k-mers
     fn hash_set(&self) -> HashSet<u64> {
         self.counts.keys().cloned().collect()
@@ -854,6 +903,11 @@ impl KmerCountTable {
 
 // non-Python accessible methods
 impl KmerCountTable {
+    fn _set_lower_upper(&mut self, lower: u64, upper: u64) -> () {
+        self.low_bound = lower;
+        self.high_bound = upper;
+    }
+
     // merge two tables that may have overlapping k-mers.
     fn _merge(&mut self, other: KmerCountTable) -> () {
         for (hashval, count) in other.counts.iter() {
