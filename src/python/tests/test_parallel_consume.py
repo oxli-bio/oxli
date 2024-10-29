@@ -11,7 +11,9 @@ def create_sample_kmer_table(ksize, kmers):
         table.count(kmer)
     return table
 
+
 # @CTB check 'consumed'
+
 
 def test_consume_1_chunk():
     # test basic consume
@@ -24,7 +26,7 @@ def test_consume_1_chunk():
 
 def test_consume_2():
     seq = "TAAACCCTAACCCTAACCCTAACCCTAACCC"
-    #parallel_chunk_size = 4
+    # parallel_chunk_size = 4
     parallel_chunk_size = len(seq) // 2
 
     cg1 = oxli.KmerCountTable(ksize=4)
