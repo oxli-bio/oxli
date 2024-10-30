@@ -5,6 +5,7 @@ use std::collections::hash_map::IntoIter;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Write};
+use std::hash;
 //use std::path::Path;
 
 // External crate imports
@@ -24,7 +25,7 @@ use sourmash::signature::SeqToHashes;
 // Set version variable
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-#[derive(Hash, Eq, PartialEq, Debug, Serialize, Deserialize, Clone, Ord, PartialOrd, Copy)]
+#[derive(Eq, PartialEq, Debug, Serialize, Deserialize, Clone, Ord, PartialOrd, Copy)]
 pub struct HashIntoType {
     h: u64
 }
@@ -55,6 +56,15 @@ impl IntoPy<PyObject> for HashIntoType {
 impl fmt::Display for HashIntoType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.h)
+    }
+}
+
+impl std::hash::Hash for HashIntoType {
+    fn hash<H>(&self, state: &mut H)
+    where H: std::hash::Hasher,
+    {
+        state.write_u64(self.h);
+        state.finish();
     }
 }
 
