@@ -6,7 +6,7 @@ use std::collections::hash_map::IntoIter;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::fs::File;
-use std::hash::{Hash, Hasher};
+use std::hash::{BuildHasher, BuildHasherDefault, Hash, Hasher};
 use std::io::{BufReader, BufWriter, Write};
 //use std::path::Path;
 
@@ -27,7 +27,8 @@ use sourmash::signature::SeqToHashes;
 // Set version variable
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Hash value type, for custom hasing.
+
+/// Hash value type, for custom hashing.
 #[derive(Eq, PartialEq, Debug, Serialize, Deserialize, Clone, Ord, PartialOrd, Copy)]
 pub struct HashIntoType {
     h: u64,
@@ -76,11 +77,38 @@ impl Hash for HashIntoType {
     }
 }
 
+#[derive(Default, Clone, Copy)]
+pub struct IdentityHash(u64);
+
+impl Hasher for IdentityHash {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+
+    fn write(&mut self, _bytes: &[u8]) {
+        panic!("This hasher only takes u64");
+    }
+
+    fn write_u64(&mut self, i: u64) {
+        self.0 = i;
+    }
+}
+
+impl BuildHasher for IdentityHash {
+    type Hasher = Self;
+
+    fn build_hasher(&self) -> Self::Hasher {
+        *self
+    }
+}
+
+type IdentityBuildHasher = BuildHasherDefault<IdentityHash>;
+
 #[pyclass]
 #[derive(Serialize, Deserialize, Debug)]
 /// Basic KmerCountTable struct, mapping hashes to counts.
 pub struct KmerCountTable {
-    counts: HashMap<HashIntoType, u64>,
+    counts: HashMap<HashIntoType, u64, IdentityBuildHasher>,
     pub ksize: u8,
     version: String,
     consumed: u64,
@@ -101,9 +129,12 @@ impl KmerCountTable {
             None
         };
 
+        let mut hm = HashMap::default();
+        hm.reserve(1_000_000);
+
         // Init new KmerCountTable
         Self {
-            counts: HashMap::new(),
+            counts: hm,
             ksize,
             version: VERSION.to_string(), // Initialize the version field
             consumed: 0,                  // Initialize the total sequence length tracker

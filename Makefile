@@ -15,7 +15,7 @@ test:
 	$(PYTHON) -m pytest
 
 wheel:
-	$(PYTHON) -m maturin build -r
+	$(PYTHON) -m maturin build -r --all-features
 
 sdist:
 	rm -f target/wheels/oxli-*.tar.gz
