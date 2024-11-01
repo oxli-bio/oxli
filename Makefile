@@ -3,7 +3,10 @@
 PYTHON ?= python
 
 all:
-	maturin develop
+	maturin develop --all-features
+
+bench:
+	cargo bench --features anyhow
 
 install:
 	$(PYTHON) -m pip install -e .

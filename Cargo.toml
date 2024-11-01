@@ -6,15 +6,31 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
 name = "oxli"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
+bench = false
+
+[[bench]]
+name = "consume"
+harness = false
 
 [dependencies]
 anyhow = "1.0.91"
+criterion = "0.5.1"
 env_logger = "0.11.5"
 log = "0.4.22"
 niffler = "2.6.0"
-pyo3 = { version="0.22.5", features = ["extension-module", "anyhow"] }
+# pyo3 = { version="0.22.5", features = ["extension-module", "anyhow"] }
 rayon = "1.10.0"
 serde = { version = "1.0.213", features = ["derive"] }
 serde_json = "1.0.132"
 sourmash = "0.16.0"
+
+[dependencies.pyo3]
+version = "0.22.5"
+
+[features]
+extension-module = ["pyo3/extension-module"]
+anyhow = ["pyo3/anyhow"]
+
+[profile.bench]
+debug = true

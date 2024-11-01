@@ -1,3 +1,5 @@
+// #![feature(test)]
+
 // Standard library imports
 use std::cmp::{max, Ord};
 use std::collections::hash_map::IntoIter;
@@ -77,7 +79,7 @@ impl Hash for HashIntoType {
 #[pyclass]
 #[derive(Serialize, Deserialize, Debug)]
 /// Basic KmerCountTable struct, mapping hashes to counts.
-struct KmerCountTable {
+pub struct KmerCountTable {
     counts: HashMap<HashIntoType, u64>,
     pub ksize: u8,
     version: String,
