@@ -1,11 +1,11 @@
 // Standard library imports
-use std::cmp::{ max, Ord};
-use std::fmt;
+use std::cmp::{max, Ord};
 use std::collections::hash_map::IntoIter;
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 use std::fs::File;
+use std::hash::{Hash, Hasher};
 use std::io::{BufReader, BufWriter, Write};
-use std::hash::{ Hasher, Hash };
 //use std::path::Path;
 
 // External crate imports
@@ -25,11 +25,10 @@ use sourmash::signature::SeqToHashes;
 // Set version variable
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-
 /// Hash value type, for custom hasing.
 #[derive(Eq, PartialEq, Debug, Serialize, Deserialize, Clone, Ord, PartialOrd, Copy)]
 pub struct HashIntoType {
-    h: u64
+    h: u64,
 }
 
 impl HashIntoType {
@@ -45,7 +44,7 @@ impl HashIntoType {
 /// Conversion into u64.
 impl Into<u64> for HashIntoType {
     fn into(self: HashIntoType) -> u64 {
-        return self.h
+        return self.h;
     }
 }
 
@@ -67,7 +66,8 @@ impl fmt::Display for HashIntoType {
 /// Custom hashing.
 impl Hash for HashIntoType {
     fn hash<H>(&self, state: &mut H)
-    where H: Hasher,
+    where
+        H: Hasher,
     {
         state.write_u64(self.h);
         state.finish();
@@ -897,7 +897,6 @@ impl KmerCountTable {
         dot_product as f64 / (magnitude_self * magnitude_other)
     }
 }
-
 
 // non-Python accessible methods
 impl KmerCountTable {
