@@ -126,7 +126,7 @@ def test_consume_vs_count_n_consumed(consume_parallel):
     n_consumed_2 = 0
     for i in range(len(seq) - 4 + 1):
         # should be one each time...
-        cg2.count(seq[i:i+4])
+        cg2.count(seq[i : i + 4])
         n_consumed_2 += 1
 
     assert n_consumed == n_consumed_2
