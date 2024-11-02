@@ -31,7 +31,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 const DEFAULT_HASHMAP_CAPACITY: usize = 100_000;
 
 /// Hash value type, for custom hashing.
-#[derive(Eq, PartialEq, Debug, Serialize, Deserialize, Clone, Ord, PartialOrd, Copy)]
+#[derive(Eq, PartialEq, Debug, Serialize, Deserialize, Clone, Ord, PartialOrd, Copy, Default)]
 pub struct HashIntoType(u64);
 
 impl HashIntoType {
@@ -73,10 +73,7 @@ impl Hash for HashIntoType {
     }
 }
 
-#[derive(Default, Clone, Copy)]
-pub struct IdentityHash(u64);
-
-impl Hasher for IdentityHash {
+impl Hasher for HashIntoType {
     fn finish(&self) -> u64 {
         self.0
     }
@@ -90,7 +87,7 @@ impl Hasher for IdentityHash {
     }
 }
 
-impl BuildHasher for IdentityHash {
+impl BuildHasher for HashIntoType {
     type Hasher = Self;
 
     fn build_hasher(&self) -> Self::Hasher {
@@ -98,7 +95,7 @@ impl BuildHasher for IdentityHash {
     }
 }
 
-type IdentityBuildHasher = BuildHasherDefault<IdentityHash>;
+type IdentityBuildHasher = BuildHasherDefault<HashIntoType>;
 
 #[pyclass]
 #[derive(Serialize, Deserialize, Debug)]
