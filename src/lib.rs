@@ -30,27 +30,20 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 // Starting capacity for HashMap
 const DEFAULT_HASHMAP_CAPACITY: usize = 100_000;
 
-
 /// Hash value type, for custom hashing.
 #[derive(Eq, PartialEq, Debug, Serialize, Deserialize, Clone, Ord, PartialOrd, Copy)]
-pub struct HashIntoType {
-    h: u64,
-}
+pub struct HashIntoType(u64);
 
 impl HashIntoType {
-    fn new(hashval: u64) -> HashIntoType {
-        HashIntoType { h: hashval }
-    }
-
     fn hash(&self) -> &u64 {
-        &self.h
+        &self.0
     }
 }
 
 /// Conversion into u64.
 impl Into<u64> for HashIntoType {
     fn into(self: HashIntoType) -> u64 {
-        return self.h;
+        return self.0;
     }
 }
 
@@ -58,14 +51,14 @@ impl Into<u64> for HashIntoType {
 impl IntoPy<PyObject> for HashIntoType {
     fn into_py(self, py: Python<'_>) -> PyObject {
         // delegates to u64's IntoPy implementation.
-        self.h.into_py(py)
+        self.0.into_py(py)
     }
 }
 
 /// Display conversion.
 impl fmt::Display for HashIntoType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.h)
+        write!(f, "{}", self.0)
     }
 }
 
@@ -75,7 +68,7 @@ impl Hash for HashIntoType {
     where
         H: Hasher,
     {
-        state.write_u64(self.h);
+        state.write_u64(self.0);
         state.finish();
     }
 }
@@ -111,7 +104,9 @@ type IdentityBuildHasher = BuildHasherDefault<IdentityHash>;
 #[derive(Serialize, Deserialize, Debug)]
 /// Basic KmerCountTable struct, mapping hashes to counts.
 pub struct KmerCountTable {
+    // Use custom hash function
     counts: HashMap<HashIntoType, u64, IdentityBuildHasher>,
+
     pub ksize: u8,
     version: String,
     consumed: u64,
@@ -161,13 +156,13 @@ impl KmerCountTable {
             );
 
             let hashval = hashes.next().expect("error hashing this k-mer");
-            Ok(HashIntoType::new(hashval?))
+            Ok(HashIntoType(hashval?))
         }
     }
 
     /// Unhash function to retrieve the canonical kmer for a given hash
     pub fn unhash(&self, hash: u64) -> PyResult<String> {
-        let hash = HashIntoType::new(hash);
+        let hash = HashIntoType(hash);
 
         if self.store_kmers {
             if let Some(kmer) = self.hash_to_kmer.as_ref().unwrap().get(&hash) {
@@ -185,7 +180,7 @@ impl KmerCountTable {
 
     /// Increment the count of a hashval by 1.
     pub fn count_hash(&mut self, hashval: u64) -> u64 {
-        let hashval = HashIntoType::new(hashval);
+        let hashval = HashIntoType(hashval);
         let count = self.counts.entry(hashval).or_insert(0);
         *count += 1;
         *count
@@ -274,7 +269,7 @@ impl KmerCountTable {
 
     /// Get the count for a specific hash value directly
     pub fn get_hash(&self, hashval: u64) -> u64 {
-        let hashval = HashIntoType::new(hashval);
+        let hashval = HashIntoType(hashval);
         // Return the count for the hash value, or 0 if it does not exist
         *self.counts.get(&hashval).unwrap_or(&0)
     }
@@ -303,7 +298,7 @@ impl KmerCountTable {
 
     /// Drop a k-mer from the count table by its hash value
     pub fn drop_hash(&mut self, hashval: u64) -> PyResult<()> {
-        let hashval = HashIntoType::new(hashval);
+        let hashval = HashIntoType(hashval);
         // Attempt to remove the hash value from the counts HashMap
         if self.counts.remove(&hashval).is_some() {
             // If the hash value was successfully removed, log and return Ok
@@ -656,7 +651,7 @@ impl KmerCountTable {
                 match result {
                     Ok((kmer, hash)) => {
                         if hash != 0 {
-                            let h = HashIntoType::new(hash);
+                            let h = HashIntoType(hash);
                             // Insert hash:kmer pair into the hashmap
                             hash_to_kmer.insert(h, kmer);
                             // Increment the count for the hash
