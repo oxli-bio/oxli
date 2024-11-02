@@ -3,7 +3,10 @@
 PYTHON ?= python
 
 all:
-	maturin develop
+	maturin develop --all-features
+
+bench:
+	cargo bench --features anyhow
 
 install:
 	$(PYTHON) -m pip install -e .
@@ -12,7 +15,7 @@ test:
 	$(PYTHON) -m pytest
 
 wheel:
-	$(PYTHON) -m maturin build -r
+	$(PYTHON) -m maturin build -r --all-features
 
 sdist:
 	rm -f target/wheels/oxli-*.tar.gz
