@@ -27,6 +27,9 @@ use sourmash::signature::SeqToHashes;
 // Set version variable
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+// Starting capacity for HashMap
+const DEFAULT_HASHMAP_CAPACITY: usize = 100_000;
+
 
 /// Hash value type, for custom hashing.
 #[derive(Eq, PartialEq, Debug, Serialize, Deserialize, Clone, Ord, PartialOrd, Copy)]
@@ -130,7 +133,7 @@ impl KmerCountTable {
         };
 
         let mut hm = HashMap::default();
-        hm.reserve(1_000_000);
+        hm.reserve(DEFAULT_HASHMAP_CAPACITY);
 
         // Init new KmerCountTable
         Self {
