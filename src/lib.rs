@@ -41,9 +41,9 @@ impl HashIntoType {
 }
 
 /// Conversion into u64.
-impl Into<u64> for HashIntoType {
-    fn into(self: HashIntoType) -> u64 {
-        return self.0;
+impl From<HashIntoType> for u64 {
+    fn from(val: HashIntoType) -> Self {
+        val.0
     }
 }
 
@@ -680,7 +680,6 @@ impl KmerCountTable {
                     Ok(0) => continue,
                     Ok(x) => {
                         self.count_hash(x);
-                        ()
                     }
                     Err(_) => {
                         let msg = format!("bad k-mer encountered at position {}", n);
@@ -932,7 +931,7 @@ impl KmerCountTable {
 // non-Python accessible methods
 impl KmerCountTable {
     // merge two tables that may have overlapping k-mers.
-    fn _merge(&mut self, other: KmerCountTable) -> () {
+    fn _merge(&mut self, other: KmerCountTable) {
         for (hashval, count) in other.counts.iter() {
             let this_count = self.counts.entry(*hashval).or_insert(0);
             *this_count += count;
@@ -946,7 +945,6 @@ impl KmerCountTable {
             // here, this will replace, but that's ok.
             my_hash_to_kmer.extend(t_hash_to_kmer);
         }
-        ()
     }
 }
 
