@@ -30,15 +30,9 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 // Starting capacity for HashMap
 const DEFAULT_HASHMAP_CAPACITY: usize = 100_000;
 
-/// Hash value type, for custom hashing.
+/// A tuple struct for hash value type, for custom hashing.
 #[derive(Eq, PartialEq, Debug, Serialize, Deserialize, Clone, Ord, PartialOrd, Copy, Default)]
 pub struct HashIntoType(u64);
-
-impl HashIntoType {
-    fn hash(&self) -> &u64 {
-        &self.0
-    }
-}
 
 /// Conversion into u64.
 impl From<HashIntoType> for u64 {
@@ -73,6 +67,7 @@ impl Hash for HashIntoType {
     }
 }
 
+/// Custom hasher.
 impl Hasher for HashIntoType {
     fn finish(&self) -> u64 {
         self.0
@@ -82,8 +77,8 @@ impl Hasher for HashIntoType {
         panic!("This hasher only takes u64");
     }
 
-    fn write_u64(&mut self, i: u64) {
-        self.0 = i;
+    fn write_u64(&mut self, _i: u64) { // no-op implementation!
+        // self.0 = i;
     }
 }
 
@@ -229,7 +224,7 @@ impl KmerCountTable {
             ))
         } else {
             let hashval = self.hash_kmer(kmer.clone())?; // Clone the kmer before passing it to hash_kmer
-            let count = self.count_hash(*hashval.hash()); // count with count_hash() function, return tally
+            let count = self.count_hash(hashval.0); // count with count_hash() function, return tally
             self.consumed += kmer.len() as u64; // Add kmer len to total consumed bases
 
             if self.store_kmers {
