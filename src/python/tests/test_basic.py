@@ -3,6 +3,11 @@ import pytest
 import oxli
 
 
+@pytest.fixture(params=[True, False])
+def consume_parallel(request):
+    return request.param
+
+
 # Helper function, create tables.
 def create_sample_kmer_table(ksize, kmers):
     table = oxli.KmerCountTable(ksize)
@@ -52,21 +57,23 @@ def test_wrong_ksize():
         cg.get(kmer)
 
 
-def test_consume():
+def test_consume(consume_parallel):
     # test basic consume
     cg = oxli.KmerCountTable(4)
     kmer = "ATCG"
 
-    assert cg.consume(kmer) == 1
+    consume = cg.parallel_consume if consume_parallel else cg.consume
+    assert consume(kmer) == 1
     assert cg.get("ATCG") == 1
 
 
-def test_consume_2():
+def test_consume_2(consume_parallel):
     # test reverse complement
     cg = oxli.KmerCountTable(4)
     seq = "ATCGG"
 
-    assert cg.consume(seq) == 2
+    consume = cg.parallel_consume if consume_parallel else cg.consume
+    assert consume(seq) == 2
     assert cg.get("ATCG") == 1
     assert cg.get("TCGG") == 1
     assert cg.get("CCGA") == 1  # reverse complement!
@@ -106,6 +113,23 @@ def test_consume_bad_DNA_ignore_is_default():
     assert cg.get("ATCG") == 1
     assert cg.get("TCGG") == 1
     assert cg.get("CCGA") == 1  # rc
+
+
+def test_consume_vs_count_n_consumed(consume_parallel):
+    seq = "TAAACCCTAACCCTAACCCTAACCCTAACCC"
+
+    cg = oxli.KmerCountTable(4)
+    consume = cg.parallel_consume if consume_parallel else cg.consume
+    n_consumed = consume(seq)
+
+    cg2 = oxli.KmerCountTable(4)
+    n_consumed_2 = 0
+    for i in range(len(seq) - 4 + 1):
+        # should be one each time...
+        cg2.count(seq[i:i+4])
+        n_consumed_2 += 1
+
+    assert n_consumed == n_consumed_2
 
 
 # Getting counts

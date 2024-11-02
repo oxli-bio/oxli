@@ -687,12 +687,12 @@ impl KmerCountTable {
         }
 
         // Update the total sequence consumed tracker
-        self.consumed += new_len as u64;
+        self.consumed += new_len as u64 - (self.ksize as u64) + 1;
 
         Ok(n)
     }
 
-    #[pyo3(signature = (seq, chunk_size, skip_bad_kmers=true))]
+    #[pyo3(signature = (seq, chunk_size=50_000, skip_bad_kmers=true))]
     pub fn parallel_consume(
         &mut self,
         seq: &str,
