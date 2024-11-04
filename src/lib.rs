@@ -545,9 +545,7 @@ impl KmerCountTable {
         let mut n = 0;
         // If store_kmers is true, then count & log hash:kmer pairs
         if self.store_kmers {
-            let hash_to_kmer = self.hash_to_kmer
-                .as_mut()
-                .unwrap();
+            let hash_to_kmer = self.hash_to_kmer.as_mut().unwrap();
 
             // Create an iterator for (canonical_kmer, hash) pairs
             let iter = KmersAndHashesIter::new(seq, self.ksize as usize, skip_bad_kmers);
