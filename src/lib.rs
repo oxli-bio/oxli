@@ -1,4 +1,5 @@
 // Standard library imports
+use std::cmp::max;
 use std::collections::hash_map::IntoIter;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
@@ -542,6 +543,11 @@ impl KmerCountTable {
     // exit with error.
     #[pyo3(signature = (seq, skip_bad_kmers=true))]
     pub fn consume(&mut self, seq: String, skip_bad_kmers: bool) -> PyResult<u64> {
+        self._consume(seq.as_str(), skip_bad_kmers)
+    }
+
+    /// private internal function that does the consumption using references.
+    fn _consume(&mut self, seq: &str, skip_bad_kmers: bool) -> PyResult<u64> {
         // Incoming seq len
         let new_len = seq.len();
         // Init tally for consumed kmers
@@ -603,6 +609,78 @@ impl KmerCountTable {
         self.consumed += new_len as u64;
 
         Ok(n)
+    }
+
+    #[pyo3(signature = (seq, chunk_size, skip_bad_kmers=true))]
+    pub fn parallel_consume(
+        &mut self,
+        seq: String,
+        chunk_size: u64,
+        skip_bad_kmers: bool,
+    ) -> PyResult<u64> {
+        let ksize: u64 = self.ksize.into();
+        let chunk_size = max(chunk_size, ksize);
+
+        // figure out the number of chunks, given the desired chunk size.
+        let seq_len = seq.len() as u64;
+        let mut num_chunks: u64 = seq_len / chunk_size;
+
+        // build a vec of (start, end) pairs.
+        let mut coord_pairs: Vec<(u64, u64)> = vec![];
+
+        // do entire sequence in one? all good.
+        if num_chunks <= 1 {
+            coord_pairs.push((0, seq_len));
+        } else {
+            // more than one chunk: do more complicated stuff :).
+            let mut final_chunk: bool = false;
+            if seq_len % chunk_size > 0 {
+                num_chunks = num_chunks - 1;
+                final_chunk = true;
+            }
+
+            for i in 0..num_chunks {
+                let start = i * chunk_size;
+                let end = (i + 1) * chunk_size + ksize - 1;
+                coord_pairs.push((start, end));
+            }
+            if final_chunk {
+                eprintln!("final chunk!");
+                // collect up the remainder
+                coord_pairs.push((num_chunks * chunk_size, seq_len));
+            }
+        }
+
+        eprintln!("{:?}", coord_pairs);
+
+        // build KmerCountTables in parallel
+        let tables: Vec<KmerCountTable> = coord_pairs
+            .par_iter()
+            .map(|(start, end)| {
+                let mut t = KmerCountTable::new(self.ksize, self.store_kmers);
+
+                let start = *start as usize;
+                let end = *end as usize;
+                t._consume(&seq[start..end], skip_bad_kmers)
+                    .expect("fail in sub consume");
+                t
+            })
+            .collect();
+
+        // now, merge the tables in serial.
+        let mut total_consumed = 0;
+        let mut i = 0;
+
+        for t in tables.into_iter() {
+            eprintln!("merge... {}", i);
+            i += 1;
+
+            total_consumed += t.consumed;
+            self._merge(t);
+        }
+        self.consumed = total_consumed;
+
+        Ok(total_consumed)
     }
 
     // Helper method to get hash set of k-mers
@@ -688,7 +766,7 @@ impl KmerCountTable {
         let mut v: Vec<(String, u64)> = vec![];
 
         // Create the iterator
-        let mut iter = KmersAndHashesIter::new(seq, self.ksize as usize, skip_bad_kmers);
+        let mut iter = KmersAndHashesIter::new(seq.as_str(), self.ksize as usize, skip_bad_kmers);
 
         // Collect the k-mers and their hashes
         while let Some(result) = iter.next() {
@@ -764,6 +842,27 @@ impl KmerCountTable {
     }
 }
 
+
+// non-Python accessible methods
+impl KmerCountTable {
+    fn _merge(&mut self, other: KmerCountTable) -> () {
+        for (hashval, count) in other.counts.iter() {
+            let this_count = self.counts.entry(*hashval).or_insert(0);
+            *this_count += count;
+        }
+
+        if self.store_kmers {
+            let t_hash_to_kmer = other.hash_to_kmer.clone().expect("hash_to_kmer is None!?");
+
+            let my_hash_to_kmer = self.hash_to_kmer.as_mut().unwrap();
+
+            // here, this will replace, but that's ok.
+            my_hash_to_kmer.extend(t_hash_to_kmer);
+        }
+        ()
+    }
+}
+
 #[pyclass]
 /// Iterator implementation for KmerCountTable
 pub struct KmerCountTableIterator {
@@ -788,9 +887,9 @@ pub struct KmersAndHashesIter {
 }
 
 impl KmersAndHashesIter {
-    pub fn new(seq: String, ksize: usize, skip_bad_kmers: bool) -> Self {
+    pub fn new(seq: &str, ksize: usize, skip_bad_kmers: bool) -> Self {
         let seq = seq.to_ascii_uppercase(); // Ensure uppercase for uniformity
-        let seqb = seq.as_bytes().to_vec(); // Convert to bytes for hashing
+        let seqb = seq.as_bytes().to_vec(); // Convert to bytes for revcomp
         let seqb_rc = revcomp(&seqb);
         let seq_rc = std::str::from_utf8(&seqb_rc)
             .expect("invalid utf-8 sequence for rev comp")
