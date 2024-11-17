@@ -80,7 +80,7 @@ impl KmerCountTable {
     pub fn unhash(&self, hash: u64) -> PyResult<String> {
         if self.store_kmers {
             if let Some(kmer) = self.hash_to_kmer.as_ref().unwrap().get(&hash) {
-                return Ok(kmer.clone());
+                Ok(kmer.clone())
             } else {
                 // Raise KeyError if hash does not exist
                 let msg = format!("Warning: Hash {} not found in table.", hash);
@@ -171,10 +171,7 @@ impl KmerCountTable {
         } else {
             let hashval = self.hash_kmer(kmer).expect("error hashing this k-mer");
 
-            let count = match self.counts.get(&hashval) {
-                Some(count) => count,
-                None => &0,
-            };
+            let count = self.counts.get(&hashval).unwrap_or(&0);
             debug!("get: hashval {}, count {}", hashval, count);
             Ok(*count)
         }
@@ -541,26 +538,25 @@ impl KmerCountTable {
     // else if "false" consume kmers until a bad kmer in encountered, then
     // exit with error.
     #[pyo3(signature = (seq, skip_bad_kmers=true))]
-    pub fn consume(&mut self, seq: String, skip_bad_kmers: bool) -> PyResult<u64> {
+    pub fn consume(&mut self, seq: &str, skip_bad_kmers: bool) -> PyResult<u64> {
         // Incoming seq len
         let new_len = seq.len();
         // Init tally for consumed kmers
         let mut n = 0;
         // If store_kmers is true, then count & log hash:kmer pairs
         if self.store_kmers {
+            let hash_to_kmer = self.hash_to_kmer.as_mut().unwrap();
+
             // Create an iterator for (canonical_kmer, hash) pairs
-            let mut iter = KmersAndHashesIter::new(seq, self.ksize as usize, skip_bad_kmers);
+            let iter = KmersAndHashesIter::new(seq, self.ksize as usize, skip_bad_kmers);
 
             // Iterate over the k-mers and their hashes
-            while let Some(result) = iter.next() {
+            for result in iter {
                 match result {
                     Ok((kmer, hash)) => {
                         if hash != 0 {
                             // Insert hash:kmer pair into the hashmap
-                            self.hash_to_kmer
-                                .as_mut()
-                                .unwrap()
-                                .insert(hash, kmer.clone());
+                            hash_to_kmer.insert(hash, kmer.clone());
                             // Increment the count for the hash
                             *self.counts.entry(hash).or_insert(0) += 1;
                             // Tally kmers added
@@ -587,7 +583,6 @@ impl KmerCountTable {
                     Ok(0) => continue,
                     Ok(x) => {
                         self.count_hash(x);
-                        ()
                     }
                     Err(_) => {
                         let msg = format!("bad k-mer encountered at position {}", n);
@@ -682,16 +677,16 @@ impl KmerCountTable {
     #[pyo3(signature = (seq, skip_bad_kmers=true))]
     pub fn kmers_and_hashes(
         &self,
-        seq: String,
+        seq: &str,
         skip_bad_kmers: bool,
     ) -> PyResult<Vec<(String, u64)>> {
         let mut v: Vec<(String, u64)> = vec![];
 
         // Create the iterator
-        let mut iter = KmersAndHashesIter::new(seq, self.ksize as usize, skip_bad_kmers);
+        let iter = KmersAndHashesIter::new(seq, self.ksize as usize, skip_bad_kmers);
 
         // Collect the k-mers and their hashes
-        while let Some(result) = iter.next() {
+        for result in iter {
             match result {
                 Ok((kmer, hash)) => v.push((kmer, hash)),
                 Err(e) => return Err(e),
@@ -788,7 +783,7 @@ pub struct KmersAndHashesIter {
 }
 
 impl KmersAndHashesIter {
-    pub fn new(seq: String, ksize: usize, skip_bad_kmers: bool) -> Self {
+    pub fn new(seq: &str, ksize: usize, skip_bad_kmers: bool) -> Self {
         let seq = seq.to_ascii_uppercase(); // Ensure uppercase for uniformity
         let seqb = seq.as_bytes().to_vec(); // Convert to bytes for hashing
         let seqb_rc = revcomp(&seqb);
@@ -799,7 +794,7 @@ impl KmersAndHashesIter {
         let end = seq.len() - ksize + 1; // Calculate the endpoint for k-mer extraction
         let hasher = SeqToHashes::new(
             &seqb,
-            ksize.into(),
+            ksize,
             true,  // Set force to true, bad kmers will emit hash=0 instead of killing process
             false, // Other flags, e.g., reverse complement
             HashFunctions::Murmur64Dna,
