@@ -2,10 +2,6 @@
   <img src="https://img.shields.io/badge/License-BSD_3--Clause-blue.svg" align="left" height="20"/>
 </a> 
 
-<a href="https://gitpod.io/#https://github.com/oxli-bio/oxli">
-  <img src="https://gitpod.io/button/open-in-gitpod.svg" align="right" height="35"/>
-</a>
-
 <br>
 
 # oxli
