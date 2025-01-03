@@ -37,9 +37,9 @@ jobs:
         channels: conda-forge,bioconda
         miniforge-variant: Miniforge3
         miniforge-version: latest
-        use-mamba: true
+        use-mamba: true # Prioritise mamba over conda if available
         mamba-version: "*"
-        activate-environment: sourmash_dev
+        activate-environment: sourmash_dev # Unclear if this env is created or not
         auto-activate-base: false
 #        use-only-tar-bz2: true
 
