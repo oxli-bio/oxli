@@ -12,7 +12,7 @@ crate-type = ["cdylib"]
 anyhow = "1.0.95"
 env_logger = "0.11.6"
 log = "0.4.22"
-niffler = "2.6.0"
+niffler = "2.7.0"
 pyo3 = { version="0.23.4", features = ["extension-module", "anyhow"] }
 rayon = "1.10.0"
 serde = { version = "1.0.217", features = ["derive"] }
