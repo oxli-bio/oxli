@@ -32,9 +32,9 @@ def test_min_non_empty_table(kmer_count_table):
     kmer_count_table.count("TTTT")  # Another k-mer with same hash (canonical k-mer)
     kmer_count_table.consume("CCCCCC")  # Count "CCCC" 3 times
 
-    assert (
-        kmer_count_table.min == 2
-    ), "min should return the minimum count value, in this case 2"
+    assert kmer_count_table.min == 2, (
+        "min should return the minimum count value, in this case 2"
+    )
 
 
 def test_max_non_empty_table(kmer_count_table):
@@ -43,9 +43,9 @@ def test_max_non_empty_table(kmer_count_table):
     kmer_count_table.count("TTTT")  # Another k-mer with same hash (canonical k-mer)
     kmer_count_table.count("CCCC")  # Another distinct k-mer
 
-    assert (
-        kmer_count_table.max == 2
-    ), "max should return the maximum count value, in this case 2"
+    assert kmer_count_table.max == 2, (
+        "max should return the maximum count value, in this case 2"
+    )
 
 
 def test_histo_zero_false_empty_table(kmer_count_table):
@@ -53,9 +53,9 @@ def test_histo_zero_false_empty_table(kmer_count_table):
 
     Edge case: When the table is empty, histo() should return an empty list.
     """
-    assert (
-        kmer_count_table.histo(zero=False) == []
-    ), "histo() should return an empty list for an empty table"
+    assert kmer_count_table.histo(zero=False) == [], (
+        "histo() should return an empty list for an empty table"
+    )
 
 
 def test_histo_zero_true_empty_table(kmer_count_table):
@@ -63,9 +63,9 @@ def test_histo_zero_true_empty_table(kmer_count_table):
 
     Edge case: When the table is empty, histo() should return [(0, 0)].
     """
-    assert kmer_count_table.histo(zero=True) == [
-        (0, 0)
-    ], "histo(zero=True) should return [(0, 0)] for an empty table"
+    assert kmer_count_table.histo(zero=True) == [(0, 0)], (
+        "histo(zero=True) should return [(0, 0)] for an empty table"
+    )
 
 
 def test_histo_zero_false_non_empty_table(kmer_count_table):
@@ -79,9 +79,9 @@ def test_histo_zero_false_non_empty_table(kmer_count_table):
     kmer_count_table.count("CCCC")  # Add distinct k-mer, counts=1
 
     expected_histo = [(1, 1), (3, 1)]  # 1 k-mer observed once, 1 observed thrice
-    assert (
-        kmer_count_table.histo(zero=False) == expected_histo
-    ), "histo(zero=False) should only return observed frequencies"
+    assert kmer_count_table.histo(zero=False) == expected_histo, (
+        "histo(zero=False) should only return observed frequencies"
+    )
 
 
 def test_histo_zero_true_non_empty_table(kmer_count_table):
@@ -100,9 +100,9 @@ def test_histo_zero_true_non_empty_table(kmer_count_table):
         (2, 0),
         (3, 1),
     ]  # Include 0 frequency, 1 k-mer observed once, 0 observed twice, 1 observed thrice
-    assert (
-        kmer_count_table.histo(zero=True) == expected_histo
-    ), "histo(zero=True) should include all frequencies up to max"
+    assert kmer_count_table.histo(zero=True) == expected_histo, (
+        "histo(zero=True) should include all frequencies up to max"
+    )
 
 
 def test_histo_with_large_max_count(kmer_count_table):
@@ -121,6 +121,6 @@ def test_histo_with_large_max_count(kmer_count_table):
         (4, 0),
         (5, 1),
     ]  # 1 k-mer with count 100
-    assert (
-        kmer_count_table.histo(zero=True) == expected_histo
-    ), "histo() include all zero counts up to max observed count."
+    assert kmer_count_table.histo(zero=True) == expected_histo, (
+        "histo() include all zero counts up to max observed count."
+    )
