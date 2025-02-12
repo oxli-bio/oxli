@@ -544,9 +544,9 @@ checksum = "4ec2a862134d2a7d32d7983ddcdd1c4923530833c9f2ea1a44fc5fa473989058"
 
 [[package]]
 name = "log"
-version = "0.4.22"
+version = "0.4.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7a70ba024b9dc04c27ea2f0c0548feb474ec5c54bba33a7f72f873a39d07b24"
+checksum = "04cbf5b083de1c7e0222a7a51dbfdba1cbe1c6ab0b15e29fff3f6c077fd9cd9f"
 
 [[package]]
 name = "matrixmultiply"
@@ -633,16 +633,16 @@ dependencies = [
 
 [[package]]
 name = "niffler"
-version = "2.6.0"
+version = "2.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd625dd485c2d20bdb98d7ec364f798b256ac09997ef18b4274be2168f53a647"
+checksum = "9e84f25af5326bacf3cbc3b9d2586d096426b10c889050cab891f89c9cb65932"
 dependencies = [
  "bgzip",
  "bzip2",
  "cfg-if",
  "flate2",
  "liblzma",
- "thiserror 1.0.63",
+ "thiserror 2.0.3",
  "zstd",
 ]
 
