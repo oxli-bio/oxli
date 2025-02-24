@@ -121,6 +121,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b64fd8980fb64af5951bc05de7772b598150a6f7eac42ec17f73e8489915f99b"
 dependencies = [
  "flate2",
+ "log",
+ "rayon",
  "thiserror 1.0.63",
 ]
 
@@ -165,19 +167,18 @@ checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
 name = "bzip2"
-version = "0.4.4"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bdb116a6ef3f6c3698828873ad02c3014b3c85cadb88496095628e3ef1e347f8"
+checksum = "75b89e7c29231c673a61a46e722602bcd138298f6b9e81e71119693534585f5c"
 dependencies = [
  "bzip2-sys",
- "libc",
 ]
 
 [[package]]
 name = "bzip2-sys"
-version = "0.1.11+1.0.8"
+version = "0.1.12+1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "736a955f3fa7875102d57c82b8cac37ec45224a07fd32d58f9f7a186b6cd4cdc"
+checksum = "72ebc2f1a417f01e1da30ef264ee86ae31d2dcd2d603ea283d3c244a883ca2a9"
 dependencies = [
  "cc",
  "libc",
@@ -649,6 +650,17 @@ version = "2.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e84f25af5326bacf3cbc3b9d2586d096426b10c889050cab891f89c9cb65932"
 dependencies = [
+ "cfg-if",
+ "flate2",
+ "thiserror 2.0.3",
+]
+
+[[package]]
+name = "niffler"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62d3115cc93dac9fabdfd25f7d4fda51ad4a959fb4667d39af20f70bddfb3574"
+dependencies = [
  "bgzip",
  "bzip2",
  "cfg-if",
@@ -751,7 +763,7 @@ dependencies = [
  "anyhow",
  "env_logger",
  "log",
- "niffler",
+ "niffler 3.0.0",
  "pyo3",
  "rayon",
  "serde",
@@ -1142,7 +1154,7 @@ dependencies = [
  "memmap2",
  "murmurhash3",
  "needletail",
- "niffler",
+ "niffler 2.7.0",
  "nohash-hasher",
  "num-iter",
  "once_cell",
