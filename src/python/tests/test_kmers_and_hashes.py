@@ -91,7 +91,7 @@ def test_bad_kmers_raise_warning_2(capfd):
 
 
 def test_report_bad_kmers():
-    "Test that bad k-mers are reported as (" ",0) when skip_bad_kmers is False"
+    "Test that bad k-mers are reported as (,0) when skip_bad_kmers is False"
     seq = "aattxttgg"
     cg = oxli.KmerCountTable(ksize=4)
 
@@ -139,9 +139,9 @@ def test_count_saves_kmer():
 
     # Check that the k-mer is stored correctly in the hash_to_kmer map
     stored_kmer = cg.unhash(hashval)
-    assert (
-        stored_kmer == kmer
-    ), f"Expected stored k-mer to be {kmer}, but got {stored_kmer}"
+    assert stored_kmer == kmer, (
+        f"Expected stored k-mer to be {kmer}, but got {stored_kmer}"
+    )
 
 
 def test_count_saves_canonical_kmer():
@@ -159,9 +159,9 @@ def test_count_saves_canonical_kmer():
     # Check that the k-mer is stored correctly in the hash_to_kmer map
     stored_kmer = cg.unhash(hashval)
 
-    assert (
-        stored_kmer == canon_kmer
-    ), f"Expected stored k-mer to be {canon_kmer}, but got {stored_kmer}"
+    assert stored_kmer == canon_kmer, (
+        f"Expected stored k-mer to be {canon_kmer}, but got {stored_kmer}"
+    )
 
 
 def test_consume_saves_kmers():
@@ -179,9 +179,9 @@ def test_consume_saves_kmers():
     for kmer in ["ACGT", "AACG", "CAAC"]:
         hashval = cg.hash_kmer(kmer)
         stored_kmer = cg.unhash(hashval)
-        assert (
-            stored_kmer == kmer
-        ), f"Expected stored k-mer to be {kmer}, but got {stored_kmer}"
+        assert stored_kmer == kmer, (
+            f"Expected stored k-mer to be {kmer}, but got {stored_kmer}"
+        )
 
 
 def test_count_increments_kmer():
@@ -195,19 +195,19 @@ def test_count_increments_kmer():
     count2 = cg.count(rev_kmer)
 
     # Check that the count has incremented
-    assert (
-        count1 == 1
-    ), f"Expected count to be 1 after first insertion, but got {count1}"
-    assert (
-        count2 == 2
-    ), f"Expected count to be 2 after second insertion, but got {count2}"
+    assert count1 == 1, (
+        f"Expected count to be 1 after first insertion, but got {count1}"
+    )
+    assert count2 == 2, (
+        f"Expected count to be 2 after second insertion, but got {count2}"
+    )
 
     # Ensure the k-mer is still stored correctly in hash_to_kmer
     hashval = cg.hash_kmer(kmer)
     stored_kmer = cg.unhash(hashval)
-    assert (
-        stored_kmer == kmer
-    ), f"Expected stored k-mer to be {kmer}, but got {stored_kmer}"
+    assert stored_kmer == kmer, (
+        f"Expected stored k-mer to be {kmer}, but got {stored_kmer}"
+    )
 
 
 def test_consume_increments_kmers():
@@ -278,6 +278,6 @@ def test_consume_invalid_kmers(capfd):
     for kmer in ["AAA", "CCC"]:
         hashval = cg.hash_kmer(kmer)
         stored_kmer = cg.unhash(hashval)
-        assert (
-            stored_kmer == kmer
-        ), f"Expected stored k-mer to be {kmer}, but got {stored_kmer}"
+        assert stored_kmer == kmer, (
+            f"Expected stored k-mer to be {kmer}, but got {stored_kmer}"
+        )
