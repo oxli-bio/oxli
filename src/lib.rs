@@ -69,7 +69,7 @@ impl KmerCountTable {
                 false,
                 HashFunctions::Murmur64Dna,
                 42,
-            );
+            )?;
 
             let hashval = hashes.next().expect("error hashing this k-mer");
             Ok(hashval?)
@@ -575,7 +575,8 @@ impl KmerCountTable {
                 false,
                 HashFunctions::Murmur64Dna,
                 42,
-            );
+            )
+            .expect("Failed to create SeqToHashes");
 
             for hash_value in hashes {
                 // eprintln!("hash_value: {:?}", hash_value);
@@ -799,7 +800,8 @@ impl KmersAndHashesIter {
             false, // Other flags, e.g., reverse complement
             HashFunctions::Murmur64Dna,
             42, // Seed for hashing
-        );
+        )
+        .expect("Failed to create SeqToHashes");
 
         Self {
             seq,
