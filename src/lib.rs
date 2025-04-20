@@ -1,9 +1,16 @@
+// #![feature(test)]
+
 // Standard library imports
-use std::cmp::max;
+use std::cmp::{max, Ord};
 use std::collections::hash_map::IntoIter;
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 use std::fs::File;
+use std::hash::{BuildHasher, BuildHasherDefault, Hash, Hasher};
 use std::io::{BufReader, BufWriter, Write};
+use std::sync::mpsc;
+use std::thread;
+
 //use std::path::Path;
 
 // External crate imports
@@ -23,16 +30,83 @@ use sourmash::signature::SeqToHashes;
 // Set version variable
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+// Starting capacity for HashMap
+const DEFAULT_HASHMAP_CAPACITY: usize = 100_000;
+
+/// A tuple struct for hash value type, for custom hashing.
+#[derive(Eq, PartialEq, Debug, Serialize, Deserialize, Clone, Ord, PartialOrd, Copy, Default)]
+pub struct HashIntoType(u64);
+
+/// Conversion into u64.
+impl From<HashIntoType> for u64 {
+    fn from(val: HashIntoType) -> Self {
+        val.0
+    }
+}
+
+/// Conversion into Python value.
+impl IntoPy<PyObject> for HashIntoType {
+    fn into_py(self, py: Python<'_>) -> PyObject {
+        // delegates to u64's IntoPy implementation.
+        self.0.into_py(py)
+    }
+}
+
+/// Display conversion.
+impl fmt::Display for HashIntoType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+/// Custom hashing.
+impl Hash for HashIntoType {
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: Hasher,
+    {
+        state.write_u64(self.0);
+        state.finish();
+    }
+}
+
+/// Custom hasher.
+impl Hasher for HashIntoType {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+
+    fn write(&mut self, _bytes: &[u8]) {
+        panic!("This hasher only takes u64");
+    }
+
+    fn write_u64(&mut self, i: u64) {
+        self.0 = i;
+    }
+}
+
+impl BuildHasher for HashIntoType {
+    type Hasher = Self;
+
+    fn build_hasher(&self) -> Self::Hasher {
+        *self
+    }
+}
+
+type IdentityBuildHasher = BuildHasherDefault<HashIntoType>;
+
 #[pyclass]
 #[derive(Serialize, Deserialize, Debug)]
 /// Basic KmerCountTable struct, mapping hashes to counts.
-struct KmerCountTable {
-    counts: HashMap<u64, u64>,
+pub struct KmerCountTable {
+    // Use custom hash function
+    counts: HashMap<HashIntoType, u64, IdentityBuildHasher>,
+
     pub ksize: u8,
     version: String,
     consumed: u64,
     store_kmers: bool, // Store hash:kmer mapping if true
-    hash_to_kmer: Option<HashMap<u64, String>>,
+    hash_to_kmer: Option<HashMap<HashIntoType, String>>,
 }
 
 #[pymethods]
@@ -47,9 +121,13 @@ impl KmerCountTable {
         } else {
             None
         };
+
+        let mut hm = HashMap::default();
+        hm.reserve(DEFAULT_HASHMAP_CAPACITY);
+
         // Init new KmerCountTable
         Self {
-            counts: HashMap::new(),
+            counts: hm,
             ksize,
             version: VERSION.to_string(), // Initialize the version field
             consumed: 0,                  // Initialize the total sequence length tracker
@@ -59,7 +137,7 @@ impl KmerCountTable {
     }
 
     /// Turn a k-mer into a hashval.
-    pub fn hash_kmer(&self, kmer: String) -> Result<u64> {
+    pub fn hash_kmer(&self, kmer: String) -> Result<HashIntoType> {
         if kmer.len() as u8 != self.ksize {
             Err(anyhow!("wrong ksize"))
         } else {
@@ -73,12 +151,14 @@ impl KmerCountTable {
             );
 
             let hashval = hashes.next().expect("error hashing this k-mer");
-            Ok(hashval?)
+            Ok(HashIntoType(hashval?))
         }
     }
 
     /// Unhash function to retrieve the canonical kmer for a given hash
     pub fn unhash(&self, hash: u64) -> PyResult<String> {
+        let hash = HashIntoType(hash);
+
         if self.store_kmers {
             if let Some(kmer) = self.hash_to_kmer.as_ref().unwrap().get(&hash) {
                 return Ok(kmer.clone());
@@ -95,6 +175,7 @@ impl KmerCountTable {
 
     /// Increment the count of a hashval by 1.
     pub fn count_hash(&mut self, hashval: u64) -> u64 {
+        let hashval = HashIntoType(hashval);
         let count = self.counts.entry(hashval).or_insert(0);
         *count += 1;
         *count
@@ -146,7 +227,7 @@ impl KmerCountTable {
             ))
         } else {
             let hashval = self.hash_kmer(kmer.clone())?; // Clone the kmer before passing it to hash_kmer
-            let count = self.count_hash(hashval); // count with count_hash() function, return tally
+            let count = self.count_hash(hashval.0); // count with count_hash() function, return tally
             self.consumed += kmer.len() as u64; // Add kmer len to total consumed bases
 
             if self.store_kmers {
@@ -183,6 +264,7 @@ impl KmerCountTable {
 
     /// Get the count for a specific hash value directly
     pub fn get_hash(&self, hashval: u64) -> u64 {
+        let hashval = HashIntoType(hashval);
         // Return the count for the hash value, or 0 if it does not exist
         *self.counts.get(&hashval).unwrap_or(&0)
     }
@@ -211,6 +293,7 @@ impl KmerCountTable {
 
     /// Drop a k-mer from the count table by its hash value
     pub fn drop_hash(&mut self, hashval: u64) -> PyResult<()> {
+        let hashval = HashIntoType(hashval);
         // Attempt to remove the hash value from the counts HashMap
         if self.counts.remove(&hashval).is_some() {
             // If the hash value was successfully removed, log and return Ok
@@ -332,7 +415,7 @@ impl KmerCountTable {
         file: Option<String>,
         sortcounts: bool,
         sortkeys: bool,
-    ) -> PyResult<Vec<(u64, u64)>> {
+    ) -> PyResult<Vec<(HashIntoType, u64)>> {
         // Raise an error if both sortcounts and sortkeys are true
         if sortcounts && sortkeys {
             return Err(PyValueError::new_err(
@@ -341,7 +424,7 @@ impl KmerCountTable {
         }
 
         // Collect hashes and counts
-        let mut hash_count_pairs: Vec<(&u64, &u64)> = self.counts.iter().collect();
+        let mut hash_count_pairs: Vec<(&HashIntoType, &u64)> = self.counts.iter().collect();
 
         // Handle sorting based on the flags
         if sortkeys {
@@ -369,7 +452,7 @@ impl KmerCountTable {
             Ok(vec![]) // Return empty vector to Python
         } else {
             // Convert the vector of references to owned values
-            let result: Vec<(u64, u64)> = hash_count_pairs
+            let result: Vec<(HashIntoType, u64)> = hash_count_pairs
                 .into_iter()
                 .map(|(&hash, &count)| (hash, count))
                 .collect();
@@ -514,7 +597,7 @@ impl KmerCountTable {
 
     // Getter for the 'hashes' attribute, returning all hash keys in the table
     #[getter]
-    pub fn hashes(&self) -> Vec<u64> {
+    pub fn hashes(&self) -> Vec<HashIntoType> {
         // Collect and return all keys from the counts HashMap
         self.counts.keys().cloned().collect()
     }
@@ -542,8 +625,8 @@ impl KmerCountTable {
     // else if "false" consume kmers until a bad kmer in encountered, then
     // exit with error.
     #[pyo3(signature = (seq, skip_bad_kmers=true))]
-    pub fn consume(&mut self, seq: String, skip_bad_kmers: bool) -> PyResult<u64> {
-        self._consume(seq.as_str(), skip_bad_kmers)
+    pub fn consume(&mut self, seq: &str, skip_bad_kmers: bool) -> PyResult<u64> {
+        self._consume(seq, skip_bad_kmers)
     }
 
     /// private internal function that does the consumption using references.
@@ -556,19 +639,19 @@ impl KmerCountTable {
         if self.store_kmers {
             // Create an iterator for (canonical_kmer, hash) pairs
             let mut iter = KmersAndHashesIter::new(seq, self.ksize as usize, skip_bad_kmers);
+            let hash_to_kmer = self.hash_to_kmer.as_mut().unwrap();
 
             // Iterate over the k-mers and their hashes
             while let Some(result) = iter.next() {
                 match result {
                     Ok((kmer, hash)) => {
                         if hash != 0 {
+                            let h = HashIntoType(hash);
                             // Insert hash:kmer pair into the hashmap
-                            self.hash_to_kmer
-                                .as_mut()
-                                .unwrap()
-                                .insert(hash, kmer.clone());
+                            hash_to_kmer.insert(h, kmer);
                             // Increment the count for the hash
-                            *self.counts.entry(hash).or_insert(0) += 1;
+                            let count = self.counts.entry(h).or_insert(0);
+                            *count += 1;
                             // Tally kmers added
                             n += 1;
                         }
@@ -588,12 +671,10 @@ impl KmerCountTable {
             );
 
             for hash_value in hashes {
-                // eprintln!("hash_value: {:?}", hash_value);
                 match hash_value {
                     Ok(0) => continue,
                     Ok(x) => {
                         self.count_hash(x);
-                        ()
                     }
                     Err(_) => {
                         let msg = format!("bad k-mer encountered at position {}", n);
@@ -606,15 +687,15 @@ impl KmerCountTable {
         }
 
         // Update the total sequence consumed tracker
-        self.consumed += new_len as u64;
+        self.consumed += new_len as u64 - (self.ksize as u64) + 1;
 
         Ok(n)
     }
 
-    #[pyo3(signature = (seq, chunk_size, skip_bad_kmers=true))]
+    #[pyo3(signature = (seq, chunk_size=50_000, skip_bad_kmers=true))]
     pub fn parallel_consume(
         &mut self,
-        seq: String,
+        seq: &str,
         chunk_size: u64,
         skip_bad_kmers: bool,
     ) -> PyResult<u64> {
@@ -645,22 +726,22 @@ impl KmerCountTable {
                 coord_pairs.push((start, end));
             }
             if final_chunk {
-                eprintln!("final chunk!");
+                // @CTB eprintln!("final chunk!");
                 // collect up the remainder
                 coord_pairs.push((num_chunks * chunk_size, seq_len));
             }
         }
 
-        eprintln!("{:?}", coord_pairs);
+        // @CTB eprintln!("{:?}", coord_pairs);
 
         // build KmerCountTables in parallel
         let tables: Vec<KmerCountTable> = coord_pairs
-            .par_iter()
+            .into_par_iter()
             .map(|(start, end)| {
                 let mut t = KmerCountTable::new(self.ksize, self.store_kmers);
 
-                let start = *start as usize;
-                let end = *end as usize;
+                let start = start as usize;
+                let end = end as usize;
                 t._consume(&seq[start..end], skip_bad_kmers)
                     .expect("fail in sub consume");
                 t
@@ -669,11 +750,11 @@ impl KmerCountTable {
 
         // now, merge the tables in serial.
         let mut total_consumed = 0;
-        let mut i = 0;
+        // @CTB let mut i = 0;
 
         for t in tables.into_iter() {
-            eprintln!("merge... {}", i);
-            i += 1;
+            // @CTB eprintln!("merge... {}", i);
+            // i += 1i += 1;
 
             total_consumed += t.consumed;
             self._merge(t);
@@ -683,31 +764,112 @@ impl KmerCountTable {
         Ok(total_consumed)
     }
 
+    #[pyo3(signature = (seq, chunk_size, skip_bad_kmers=true))]
+    pub fn parallel_consume2(
+        &mut self,
+        seq: &str,
+        chunk_size: u64,
+        skip_bad_kmers: bool,
+    ) -> PyResult<u64> {
+        let ksize: u64 = self.ksize.into();
+        let chunk_size = max(chunk_size, ksize);
+
+        // figure out the number of chunks, given the desired chunk size.
+        // @CTB: factor out into own function!
+        let seq_len = seq.len() as u64;
+        let mut num_chunks: u64 = seq_len / chunk_size;
+
+        // build a vec of (start, end) pairs.
+        let mut coord_pairs: Vec<(u64, u64)> = vec![];
+
+        // do entire sequence in one? all good.
+        if num_chunks <= 1 {
+            coord_pairs.push((0, seq_len));
+        } else {
+            // more than one chunk: do more complicated stuff :).
+            let mut final_chunk: bool = false;
+            if seq_len % chunk_size > 0 {
+                num_chunks = num_chunks - 1;
+                final_chunk = true;
+            }
+
+            for i in 0..num_chunks {
+                let start = i * chunk_size;
+                let end = (i + 1) * chunk_size + ksize - 1;
+                coord_pairs.push((start, end));
+            }
+            if final_chunk {
+                // @CTB eprintln!("final chunk!");
+                // collect up the remainder
+                coord_pairs.push((num_chunks * chunk_size, seq_len));
+            }
+        }
+
+        // @CTB eprintln!("{:?}", coord_pairs);
+
+        let (sender, receiver) = mpsc::channel();
+
+        for (start, end) in coord_pairs.into_iter() {
+            let sender = sender.clone();
+            let start = start as usize;
+            let end = end as usize;
+            let subseq = String::from(&seq[start..end]);
+
+            thread::spawn(move || {
+                let hashes = SeqToHashes::new(
+                    subseq.as_str().as_bytes(),
+                    ksize as usize,
+                    skip_bad_kmers,
+                    false,
+                    HashFunctions::Murmur64Dna,
+                    42,
+                );
+
+                for hash_value in hashes {
+                    match hash_value {
+                        Ok(0) => continue,
+                        Ok(x) => {
+                            sender.send(x).expect("send failed?!");
+                        },
+                        Err(_) => continue,
+                    }
+                }
+            });
+        }
+        drop(sender);
+
+        for received in receiver {
+            self.count_hash(received);
+        }
+
+        Ok(1)                   // total_consumed @CTB
+    }
+
     // Helper method to get hash set of k-mers
-    fn hash_set(&self) -> HashSet<u64> {
+    fn hash_set(&self) -> HashSet<HashIntoType> {
         self.counts.keys().cloned().collect()
     }
 
     // Set operation methods
-    pub fn union(&self, other: &KmerCountTable) -> HashSet<u64> {
+    pub fn union(&self, other: &KmerCountTable) -> HashSet<HashIntoType> {
         self.hash_set().union(&other.hash_set()).cloned().collect()
     }
 
-    pub fn intersection(&self, other: &KmerCountTable) -> HashSet<u64> {
+    pub fn intersection(&self, other: &KmerCountTable) -> HashSet<HashIntoType> {
         self.hash_set()
             .intersection(&other.hash_set())
             .cloned()
             .collect()
     }
 
-    pub fn difference(&self, other: &KmerCountTable) -> HashSet<u64> {
+    pub fn difference(&self, other: &KmerCountTable) -> HashSet<HashIntoType> {
         self.hash_set()
             .difference(&other.hash_set())
             .cloned()
             .collect()
     }
 
-    pub fn symmetric_difference(&self, other: &KmerCountTable) -> HashSet<u64> {
+    pub fn symmetric_difference(&self, other: &KmerCountTable) -> HashSet<HashIntoType> {
         self.hash_set()
             .symmetric_difference(&other.hash_set())
             .cloned()
@@ -715,19 +877,19 @@ impl KmerCountTable {
     }
 
     // Python dunder methods for set operations
-    fn __or__(&self, other: &KmerCountTable) -> HashSet<u64> {
+    fn __or__(&self, other: &KmerCountTable) -> HashSet<HashIntoType> {
         self.union(other)
     }
 
-    fn __and__(&self, other: &KmerCountTable) -> HashSet<u64> {
+    fn __and__(&self, other: &KmerCountTable) -> HashSet<HashIntoType> {
         self.intersection(other)
     }
 
-    fn __sub__(&self, other: &KmerCountTable) -> HashSet<u64> {
+    fn __sub__(&self, other: &KmerCountTable) -> HashSet<HashIntoType> {
         self.difference(other)
     }
 
-    fn __xor__(&self, other: &KmerCountTable) -> HashSet<u64> {
+    fn __xor__(&self, other: &KmerCountTable) -> HashSet<HashIntoType> {
         self.symmetric_difference(other)
     }
 
@@ -842,10 +1004,10 @@ impl KmerCountTable {
     }
 }
 
-
 // non-Python accessible methods
 impl KmerCountTable {
-    fn _merge(&mut self, other: KmerCountTable) -> () {
+    // merge two tables that may have overlapping k-mers.
+    fn _merge(&mut self, other: KmerCountTable) {
         for (hashval, count) in other.counts.iter() {
             let this_count = self.counts.entry(*hashval).or_insert(0);
             *this_count += count;
@@ -859,19 +1021,18 @@ impl KmerCountTable {
             // here, this will replace, but that's ok.
             my_hash_to_kmer.extend(t_hash_to_kmer);
         }
-        ()
     }
 }
 
 #[pyclass]
 /// Iterator implementation for KmerCountTable
 pub struct KmerCountTableIterator {
-    inner: IntoIter<u64, u64>, // Now we own the iterator
+    inner: IntoIter<HashIntoType, u64>, // Now we own the iterator
 }
 
 #[pymethods]
 impl KmerCountTableIterator {
-    pub fn __next__(mut slf: PyRefMut<Self>) -> Option<(u64, u64)> {
+    pub fn __next__(mut slf: PyRefMut<Self>) -> Option<(HashIntoType, u64)> {
         slf.inner.next()
     }
 }
