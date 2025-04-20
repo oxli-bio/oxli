@@ -9,9 +9,10 @@ name = "oxli"
 crate-type = ["cdylib", "rlib"]
 bench = false
 
-[[bench]]
-name = "consume"
-harness = false
+# Benchmarks not added yet
+#[[bench]]
+#name = "consume"
+#harness = false
 
 [dependencies]
 anyhow = "1.0.91"
