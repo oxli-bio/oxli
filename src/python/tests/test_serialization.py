@@ -34,9 +34,9 @@ def test_serialize_json(sample_kmer_table):
     # Check that essential attributes exist
     assert "counts" in json_dict, "Counts should be serialized."
     assert json_dict["ksize"] == 4, "Ksize should be correctly serialized."
-    assert (
-        sample_kmer_table.version == json_dict["version"]
-    ), "Version should be serialized."
+    assert sample_kmer_table.version == json_dict["version"], (
+        "Version should be serialized."
+    )
 
 
 def test_save_load_roundtrip(sample_kmer_table, tmp_path):
@@ -55,12 +55,12 @@ def test_save_load_roundtrip(sample_kmer_table, tmp_path):
     loaded_table = KmerCountTable.load(temp_file)
 
     # Verify that the loaded data matches the original
-    assert loaded_table.get("AAAA") == sample_kmer_table.get(
-        "AAAA"
-    ), "Counts should be preserved after loading."
-    assert loaded_table.get("TTTT") == sample_kmer_table.get(
-        "TTTT"
-    ), "Counts for reverse complement should be preserved."
+    assert loaded_table.get("AAAA") == sample_kmer_table.get("AAAA"), (
+        "Counts should be preserved after loading."
+    )
+    assert loaded_table.get("TTTT") == sample_kmer_table.get("TTTT"), (
+        "Counts for reverse complement should be preserved."
+    )
     assert list(loaded_table) == list(sample_kmer_table), "All records in same order."
 
 

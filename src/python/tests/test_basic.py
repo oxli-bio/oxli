@@ -184,9 +184,9 @@ def test_get_hash_array():
     counts = table.get_hash_array(hash_keys)
     rev_counts = table.get_hash_array(hash_keys_rev)
 
-    assert (
-        counts == [2, 1, 0]
-    ), "Hash array counts should match the counts of 'AAA' and 'AAC' and return zero for 'GGG'."
+    assert counts == [2, 1, 0], (
+        "Hash array counts should match the counts of 'AAA' and 'AAC' and return zero for 'GGG'."
+    )
     assert rev_counts == [0, 1, 2], "Count should be in same order as input list"
 
 

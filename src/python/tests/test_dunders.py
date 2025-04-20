@@ -38,12 +38,12 @@ def test_iterable():
     items = list(kmer_table)
 
     # Check if the items contain the expected tuples
-    assert 2 in [
-        count for _, count in items
-    ], "Counts should be present in the iterated items"
-    assert 6579496673972597301 in [
-        key for key, _ in items
-    ], "keys should be present in the iterated items"
+    assert 2 in [count for _, count in items], (
+        "Counts should be present in the iterated items"
+    )
+    assert 6579496673972597301 in [key for key, _ in items], (
+        "keys should be present in the iterated items"
+    )
     assert len(items) == 2, "There should be 2 k-mers in the table"
 
 
@@ -64,26 +64,26 @@ def test_setitem():
     """Set values using the indexing syntax (obj[key] = value)"""
     kmer_table = oxli.KmerCountTable(ksize=16)
     kmer_table["ACGTACGTACGTACGT"] = 5  # Set count directly
-    assert (
-        kmer_table["ACGTACGTACGTACGT"] == 5
-    ), "Value should be 5 after setting with __setitem__"
+    assert kmer_table["ACGTACGTACGTACGT"] == 5, (
+        "Value should be 5 after setting with __setitem__"
+    )
 
 
 def test_getitem():
     """Query an object to using the indexing syntax (obj[key])"""
     kmer_table = oxli.KmerCountTable(ksize=16)
     kmer_table["ACGTACGTACGTACGT"] = 5
-    assert (
-        kmer_table["ACGTACGTACGTACGT"] == 5
-    ), "Value should be 5 after setting with __setitem__"
-    assert kmer_table["ACGTACGTACGTACGT"] == kmer_table.get(
-        "ACGTACGTACGTACGT"
-    ), "Behaviour should be same as .get()"
+    assert kmer_table["ACGTACGTACGTACGT"] == 5, (
+        "Value should be 5 after setting with __setitem__"
+    )
+    assert kmer_table["ACGTACGTACGTACGT"] == kmer_table.get("ACGTACGTACGTACGT"), (
+        "Behaviour should be same as .get()"
+    )
 
     # Check for a k-mer that does not exist
-    assert (
-        kmer_table["CCCCCCCCCCCCCCCC"] == 0
-    ), "Default value for non-existent k-mer should be 0"
+    assert kmer_table["CCCCCCCCCCCCCCCC"] == 0, (
+        "Default value for non-existent k-mer should be 0"
+    )
 
 
 def test_setitem_update():
@@ -92,6 +92,6 @@ def test_setitem_update():
     kmer_table["ACGTACGTACGTACGT"] = 5  # Update count to 5
     assert kmer_table.get("ACGTACGTACGTACGT") == 5
     kmer_table["ACGTACGTACGTACGT"] = 10  # Update the count
-    assert (
-        kmer_table["ACGTACGTACGTACGT"] == 10
-    ), "Value should be updated to 10 after setting with __setitem__"
+    assert kmer_table["ACGTACGTACGTACGT"] == 10, (
+        "Value should be updated to 10 after setting with __setitem__"
+    )
