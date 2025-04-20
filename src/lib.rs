@@ -3,6 +3,10 @@ use std::collections::hash_map::IntoIter;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Write};
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Mutex,
+};
 //use std::path::Path;
 
 // External crate imports
@@ -59,7 +63,7 @@ impl KmerCountTable {
 
     /// Turn a k-mer into a hashval.
     pub fn hash_kmer(&self, kmer: String) -> Result<u64> {
-        if kmer.len() as u8 != self.ksize {
+        if (kmer.len() as u8) != self.ksize {
             Err(anyhow!("wrong ksize"))
         } else {
             let mut hashes = SeqToHashes::new(
@@ -222,6 +226,7 @@ impl KmerCountTable {
     /// Remove all k-mers with counts less than a given threshold
     pub fn mincut(&mut self, min_count: u64) -> PyResult<u64> {
         // Create a vector to store the keys (hashes) to be removed
+
         let mut to_remove = Vec::new();
 
         // Iterate over the HashMap and identify keys with counts less than the threshold
@@ -757,6 +762,78 @@ impl KmerCountTable {
 
         // Calculate and return cosine similarity.
         dot_product as f64 / (magnitude_self * magnitude_other)
+    }
+
+    /// Add counts from another KmerCountTable to this one.
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The KmerCountTable to add from
+    ///
+    /// # Returns
+    ///
+    /// Returns a PyResult with a tuple containing:
+    /// * The number of k-mer counts added
+    /// * The number of new keys added
+    #[pyo3(signature = (other))]
+    pub fn add(&mut self, other: &KmerCountTable) -> PyResult<(u64, u64)> {
+        if self.ksize != other.ksize {
+            return Err(PyValueError::new_err(
+                "KmerCountTables must have the same ksize",
+            ));
+        }
+
+        let total_counts_added = AtomicU64::new(0);
+        let new_keys_added = AtomicU64::new(0);
+        let counts_mutex = Mutex::new(&mut self.counts);
+
+        // Use thread-local storage to collect updates
+        let updates: Vec<_> = other
+            .counts
+            .par_iter()
+            .map(|(&hash, &count)| (hash, count))
+            .collect();
+
+        // Apply updates in parallel
+        updates.par_iter().for_each(|(hash, count)| {
+            let mut counts_lock = counts_mutex.lock().unwrap();
+            let current_count = counts_lock.entry(*hash).or_insert(0);
+            if *current_count == 0 {
+                new_keys_added.fetch_add(1, Ordering::Relaxed);
+            }
+            *current_count += count;
+            total_counts_added.fetch_add(*count, Ordering::Relaxed);
+        });
+
+        self.consumed += other.consumed;
+
+        if self.store_kmers {
+            if other.store_kmers {
+                let hash_to_kmer_mutex = Mutex::new(self.hash_to_kmer.as_mut().unwrap());
+
+                other
+                    .hash_to_kmer
+                    .as_ref()
+                    .unwrap()
+                    .par_iter()
+                    .for_each(|(&hash, kmer)| {
+                        let mut hash_to_kmer_lock = hash_to_kmer_mutex.lock().unwrap();
+                        hash_to_kmer_lock
+                            .entry(hash)
+                            .or_insert_with(|| kmer.clone());
+                    });
+            } else {
+                eprintln!("Warning: Incoming table does not store k-mers, but target table does. K-mer information for new hashes will be missing.");
+            }
+        }
+
+        let total_added = total_counts_added.load(Ordering::Relaxed);
+        let new_keys = new_keys_added.load(Ordering::Relaxed);
+
+        println!("Added {} k-mer counts to the table", total_added);
+        println!("Added {} new keys to the table", new_keys);
+
+        Ok((total_added, new_keys))
     }
 }
 
