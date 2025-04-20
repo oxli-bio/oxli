@@ -12,7 +12,7 @@ authors = [
 ]
 
 maintainers = [
-    { name="C. Titus Brown", email="ctbrown@ucdavis.edu", orcid="0000-0001-6001-2677" },
+    { name="C. Titus Brown", email="ctbrown@ucdavis.edu"},
 ]
 
 readme = "README.md"
