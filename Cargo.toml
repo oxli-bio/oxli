@@ -10,7 +10,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 anyhow = "1.0.98"
-env_logger = "0.11.6"
+env_logger = "0.11.8"
 log = "0.4.27"
 niffler = "3.0.0"
 pyo3 = { version="0.24.1", features = ["extension-module", "anyhow"] }
