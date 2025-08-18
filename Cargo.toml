@@ -9,7 +9,7 @@ name = "oxli"
 crate-type = ["cdylib"]
 
 [dependencies]
-anyhow = "1.0.98"
+anyhow = "1.0.99"
 env_logger = "0.11.8"
 log = "0.4.27"
 niffler = "3.0.0"
