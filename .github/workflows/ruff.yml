@@ -17,7 +17,7 @@ jobs:
         with:
           src: './src/python'
           args: 'format --target-version py310'
-      - uses: stefanzweifel/git-auto-commit-action@v6
+      - uses: stefanzweifel/git-auto-commit-action@v7
         id: auto-commit-action
         with:
           commit_message: 'Style fixes by Ruff'
