@@ -17,5 +17,5 @@ pyo3 = { version="0.28.2", features = ["extension-module", "anyhow"] }
 rayon = "1.11.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
-sourmash = "0.21.0"
+sourmash = "0.22.0"
 
