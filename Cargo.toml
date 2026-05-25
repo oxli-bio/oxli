@@ -16,6 +16,6 @@ niffler = "3.0.1"
 pyo3 = { version="0.28.3", features = ["extension-module", "anyhow"] }
 rayon = "1.12.0"
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.149"
+serde_json = "1.0.150"
 sourmash = "0.22.0"
 
