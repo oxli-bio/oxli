@@ -6,7 +6,7 @@ all:
 	maturin develop --all-features
 
 bench:
-	cargo bench --features anyhow
+	cargo bench
 
 install:
 	$(PYTHON) -m pip install -e .

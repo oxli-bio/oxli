@@ -66,7 +66,7 @@ impl Hash for HashIntoType {
         H: Hasher,
     {
         state.write_u64(self.0);
-        state.finish();
+        let _ = state.finish();
     }
 }
 
@@ -687,7 +687,7 @@ impl KmerCountTable {
         }
 
         // Update the total sequence consumed tracker
-        self.consumed += new_len as u64 - (self.ksize as u64) + 1;
+        self.consumed += new_len as u64;
 
         Ok(n)
     }
@@ -726,13 +726,10 @@ impl KmerCountTable {
                 coord_pairs.push((start, end));
             }
             if final_chunk {
-                // @CTB eprintln!("final chunk!");
                 // collect up the remainder
                 coord_pairs.push((num_chunks * chunk_size, seq_len));
             }
         }
-
-        // @CTB eprintln!("{:?}", coord_pairs);
 
         // build KmerCountTables in parallel
         let tables: Vec<KmerCountTable> = coord_pairs
@@ -749,19 +746,15 @@ impl KmerCountTable {
             .collect();
 
         // now, merge the tables in serial.
-        let mut total_consumed = 0;
-        // @CTB let mut i = 0;
-
         for t in tables.into_iter() {
-            // @CTB eprintln!("merge... {}", i);
-            // i += 1i += 1;
-
-            total_consumed += t.consumed;
             self._merge(t);
         }
-        self.consumed = total_consumed;
 
-        Ok(total_consumed)
+        // Update total bases consumed (full sequence length)
+        self.consumed += seq_len;
+
+        // Return number of k-mers processed
+        Ok(seq_len - (ksize - 1))
     }
 
     #[pyo3(signature = (seq, chunk_size, skip_bad_kmers=true))]
@@ -775,7 +768,6 @@ impl KmerCountTable {
         let chunk_size = max(chunk_size, ksize);
 
         // figure out the number of chunks, given the desired chunk size.
-        // @CTB: factor out into own function!
         let seq_len = seq.len() as u64;
         let mut num_chunks: u64 = seq_len / chunk_size;
 
@@ -799,13 +791,10 @@ impl KmerCountTable {
                 coord_pairs.push((start, end));
             }
             if final_chunk {
-                // @CTB eprintln!("final chunk!");
                 // collect up the remainder
                 coord_pairs.push((num_chunks * chunk_size, seq_len));
             }
         }
-
-        // @CTB eprintln!("{:?}", coord_pairs);
 
         let (sender, receiver) = mpsc::channel();
 
@@ -830,7 +819,7 @@ impl KmerCountTable {
                         Ok(0) => continue,
                         Ok(x) => {
                             sender.send(x).expect("send failed?!");
-                        },
+                        }
                         Err(_) => continue,
                     }
                 }
@@ -842,7 +831,11 @@ impl KmerCountTable {
             self.count_hash(received);
         }
 
-        Ok(1)                   // total_consumed @CTB
+        // Update total bases consumed (full sequence length)
+        self.consumed += seq_len;
+
+        // Return number of k-mers processed
+        Ok(seq_len - (ksize - 1))
     }
 
     // Helper method to get hash set of k-mers
