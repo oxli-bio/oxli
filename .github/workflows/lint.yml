@@ -35,12 +35,12 @@ jobs:
         auto-update-conda: true
         python-version: 3.12
         channels: conda-forge,bioconda
-        miniforge-variant: Mambaforge
+        miniforge-variant: Miniforge3
         miniforge-version: latest
         use-mamba: true
         mamba-version: "*"
         activate-environment: sourmash_dev
-        auto-activate-base: false
+        auto-activate: false
 #        use-only-tar-bz2: true
 
     - run: conda info
