@@ -1,4 +1,5 @@
 // Standard library imports
+use std::cmp::max;
 use std::collections::hash_map::IntoIter;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
@@ -29,7 +30,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 #[pyclass]
 #[derive(Serialize, Deserialize, Debug)]
 /// Basic KmerCountTable struct, mapping hashes to counts.
-struct KmerCountTable {
+pub struct KmerCountTable {
     counts: HashMap<u64, u64>,
     pub ksize: u8,
     version: String,
@@ -606,6 +607,86 @@ impl KmerCountTable {
         Ok(n)
     }
 
+    /// Consume a DNA string in parallel by splitting it into overlapping chunks,
+    /// processing each chunk concurrently using Rayon, and merging the results.
+    ///
+    /// Each chunk overlaps its neighbours by `ksize - 1` bases so that no k-mer
+    /// spanning a chunk boundary is missed.  After all chunks have been processed
+    /// the per-chunk tables are merged into `self` using a fast serial merge.
+    ///
+    /// # Arguments
+    /// * `seq`            - The DNA sequence to consume.
+    /// * `chunk_size`     - Target number of k-mers per chunk (clamped to at
+    ///                      least `ksize`).  Defaults to 50 000.
+    /// * `skip_bad_kmers` - If `true`, k-mers containing non-DNA characters are
+    ///                      silently skipped.  If `false`, the first bad k-mer
+    ///                      raises an error.  Defaults to `true`.
+    ///
+    /// # Returns
+    /// The total number of k-mers consumed (identical to what `consume` would
+    /// return for the same sequence).
+    #[pyo3(signature = (seq, chunk_size=50_000, skip_bad_kmers=true))]
+    pub fn parallel_consume(
+        &mut self,
+        seq: &str,
+        chunk_size: usize,
+        skip_bad_kmers: bool,
+    ) -> PyResult<u64> {
+        let ksize = self.ksize as usize;
+        let seq_len = seq.len();
+
+        // Nothing to do for sequences shorter than k.
+        if seq_len < ksize {
+            self.consumed += seq_len as u64;
+            return Ok(0);
+        }
+
+        // Clamp chunk_size so it is always >= ksize.
+        let chunk_size = max(chunk_size, ksize);
+
+        // For short sequences that fit in a single chunk, delegate to consume.
+        if seq_len <= chunk_size {
+            return self.consume(seq, skip_bad_kmers);
+        }
+
+        // Build a list of (start, end) byte-index pairs for each chunk.
+        // Adjacent chunks overlap by (ksize - 1) bases so that every k-mer
+        // crossing a chunk boundary appears in exactly one chunk.
+        let mut coord_pairs: Vec<(usize, usize)> = Vec::new();
+        let mut start = 0;
+        while start < seq_len {
+            let end = (start + chunk_size + ksize - 1).min(seq_len);
+            coord_pairs.push((start, end));
+            if end == seq_len {
+                break;
+            }
+            start += chunk_size;
+        }
+
+        // Process chunks in parallel: each chunk produces a local KmerCountTable.
+        let chunk_results: Vec<PyResult<(KmerCountTable, u64)>> = coord_pairs
+            .into_par_iter()
+            .map(|(start, end)| {
+                let mut t = KmerCountTable::new(self.ksize, self.store_kmers);
+                let n = t.consume(&seq[start..end], skip_bad_kmers)?;
+                Ok((t, n))
+            })
+            .collect();
+
+        // Merge the per-chunk tables into self and accumulate the k-mer count.
+        let mut total_n: u64 = 0;
+        for result in chunk_results {
+            let (t, n) = result?;
+            self._merge(t);
+            total_n += n;
+        }
+
+        // Record the total bases processed (full sequence, counted once).
+        self.consumed += seq_len as u64;
+
+        Ok(total_n)
+    }
+
     // Helper method to get hash set of k-mers
     fn hash_set(&self) -> HashSet<u64> {
         self.counts.keys().cloned().collect()
@@ -834,6 +915,28 @@ impl KmerCountTable {
         println!("Added {} new keys to the table", new_keys);
 
         Ok((total_added, new_keys))
+    }
+}
+
+// Private (non-Python-visible) methods
+impl KmerCountTable {
+    /// Merge `other` into `self` by summing counts for shared hashes and
+    /// inserting new hashes.  `consumed` is intentionally **not** propagated
+    /// because callers that split sequences into chunks track `consumed`
+    /// at the top level.
+    fn _merge(&mut self, other: KmerCountTable) {
+        for (hashval, count) in other.counts {
+            *self.counts.entry(hashval).or_insert(0) += count;
+        }
+
+        if self.store_kmers {
+            if let Some(other_map) = other.hash_to_kmer {
+                let my_map = self.hash_to_kmer.as_mut().unwrap();
+                for (hash, kmer) in other_map {
+                    my_map.entry(hash).or_insert(kmer);
+                }
+            }
+        }
     }
 }
 

@@ -4,6 +4,27 @@
 /// The genome is fetched from the NCBI FTP site on first run and cached in the
 /// system temp directory.  If the download fails (e.g. no network access), all
 /// benchmarks in this file are silently skipped so that CI still passes.
+///
+/// # Strategy comparison
+///
+/// Two strategies are benchmarked:
+///
+/// * **`consume`** – single-threaded sequential k-mer counting.  Simple and
+///   cache-friendly; best for small inputs or environments with a single CPU.
+///
+/// * **`parallel_consume`** – the sequence is split into overlapping chunks
+///   (overlap = ksize − 1 so boundary k-mers are never missed).  Each chunk
+///   is processed independently by a Rayon worker thread, and the resulting
+///   per-chunk tables are merged serially into the main table.  Scales well
+///   with available CPU cores; preferable for long sequences (≥ hundreds of
+///   kilobases) on multi-core hardware.
+///
+/// Best practice: use `parallel_consume` when the sequence is large enough to
+/// benefit from parallelism (typically >> `chunk_size`).  The default
+/// `chunk_size` of 50 000 bases balances thread-dispatch overhead against
+/// per-chunk work.  Smaller chunks increase parallelism but also increase the
+/// overhead of table creation and serial merging; larger chunks reduce
+/// parallelism but lower overhead.
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use oxli::KmerCountTable;
 use std::fs::File;
@@ -106,7 +127,7 @@ fn load_genome_sequence() -> Option<String> {
 
 // ── benchmark functions ───────────────────────────────────────────────────────
 
-/// Benchmark `KmerCountTable::consume` for a range of k-mer sizes.
+/// Benchmark `KmerCountTable::consume` (single-threaded) for a range of k sizes.
 fn bench_consume(c: &mut Criterion) {
     let sequence = match load_genome_sequence() {
         Some(s) => s,
@@ -127,7 +148,7 @@ fn bench_consume(c: &mut Criterion) {
     group.finish();
 }
 
-/// Benchmark `KmerCountTable::parallel_consume` for a range of k-mer sizes.
+/// Benchmark `KmerCountTable::parallel_consume` with the default chunk size.
 fn bench_parallel_consume(c: &mut Criterion) {
     let sequence = match load_genome_sequence() {
         Some(s) => s,
@@ -148,23 +169,28 @@ fn bench_parallel_consume(c: &mut Criterion) {
     group.finish();
 }
 
-/// Benchmark `KmerCountTable::parallel_consume2` for a range of k-mer sizes.
-fn bench_parallel_consume2(c: &mut Criterion) {
+/// Benchmark `parallel_consume` across different chunk sizes to find the sweet
+/// spot for the *E. coli* genome (~4.6 Mbp) at ksize = 21.
+fn bench_parallel_consume_chunk_sizes(c: &mut Criterion) {
     let sequence = match load_genome_sequence() {
         Some(s) => s,
         None => return,
     };
 
-    let mut group = c.benchmark_group("parallel_consume2");
-    for ksize in [21u8, 31] {
-        group.bench_with_input(BenchmarkId::new("ecoli", ksize), &ksize, |b, &k| {
-            b.iter(|| {
-                let mut table = KmerCountTable::new(k, false);
-                table
-                    .parallel_consume2(black_box(&sequence), 50_000, true)
-                    .expect("parallel_consume2 failed");
-            });
-        });
+    let mut group = c.benchmark_group("parallel_consume_chunk_sizes");
+    for chunk_size in [10_000usize, 50_000, 200_000, 500_000] {
+        group.bench_with_input(
+            BenchmarkId::new("ecoli_k21", chunk_size),
+            &chunk_size,
+            |b, &cs| {
+                b.iter(|| {
+                    let mut table = KmerCountTable::new(21, false);
+                    table
+                        .parallel_consume(black_box(&sequence), cs, true)
+                        .expect("parallel_consume failed");
+                });
+            },
+        );
     }
     group.finish();
 }
@@ -175,6 +201,6 @@ criterion_group!(
     benches,
     bench_consume,
     bench_parallel_consume,
-    bench_parallel_consume2
+    bench_parallel_consume_chunk_sizes
 );
 criterion_main!(benches);
