@@ -6,7 +6,6 @@
 /// benchmarks in this file are silently skipped so that CI still passes.
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::hint::black_box;
-use niffler;
 use oxli::KmerCountTable;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
