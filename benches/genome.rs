@@ -5,9 +5,9 @@
 /// system temp directory.  If the download fails (e.g. no network access), all
 /// benchmarks in this file are silently skipped so that CI still passes.
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use std::hint::black_box;
 use oxli::KmerCountTable;
 use std::fs::File;
+use std::hint::black_box;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::process::Command;
@@ -171,5 +171,10 @@ fn bench_parallel_consume2(c: &mut Criterion) {
 
 // ── criterion entry points ────────────────────────────────────────────────────
 
-criterion_group!(benches, bench_consume, bench_parallel_consume, bench_parallel_consume2);
+criterion_group!(
+    benches,
+    bench_consume,
+    bench_parallel_consume,
+    bench_parallel_consume2
+);
 criterion_main!(benches);
