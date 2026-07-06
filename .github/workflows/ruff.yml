@@ -9,7 +9,7 @@ jobs:
       contents: write # Allows reading and writing repository contents (e.g., commits)
       pull-requests: write # Allows reading and writing pull requests
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           token: ${{ secrets.ACTION_TOKEN }}
@@ -17,7 +17,7 @@ jobs:
         with:
           src: './src/python'
           args: 'format --target-version py310'
-      - uses: stefanzweifel/git-auto-commit-action@v5
+      - uses: stefanzweifel/git-auto-commit-action@v7
         id: auto-commit-action
         with:
           commit_message: 'Style fixes by Ruff'

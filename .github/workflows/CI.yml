@@ -36,8 +36,8 @@ jobs:
           - runner: ubuntu-latest
             target: ppc64le
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
           python-version: 3.12
       - name: Build wheels
@@ -48,13 +48,16 @@ jobs:
           sccache: 'true'
           manylinux: auto
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-linux-${{ matrix.platform.target }}
           path: dist
 
   musllinux:
     runs-on: ${{ matrix.platform.runner }}
+    env:
+      CARGO_HTTP_MULTIPLEXING: "false"
+      CARGO_NET_RETRY: "10"
     strategy:
       matrix:
         platform:
@@ -67,8 +70,8 @@ jobs:
           - runner: ubuntu-latest
             target: armv7
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
           python-version: 3.12
       - name: Build wheels
@@ -79,7 +82,7 @@ jobs:
           sccache: 'true'
           manylinux: musllinux_1_2
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-musllinux-${{ matrix.platform.target }}
           path: dist
@@ -94,8 +97,8 @@ jobs:
           - runner: windows-latest
             target: x86
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
           python-version: 3.12
           architecture: ${{ matrix.platform.target }}
@@ -106,7 +109,7 @@ jobs:
           args: --release --out dist --interpreter python3.12
           sccache: 'true'
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-windows-${{ matrix.platform.target }}
           path: dist
@@ -116,13 +119,13 @@ jobs:
     strategy:
       matrix:
         platform:
-          - runner: macos-12
+          - runner: macos-latest
             target: x86_64
-          - runner: macos-14
+          - runner: macos-latest
             target: aarch64
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
           python-version: 3.12
       - name: Build wheels
@@ -132,7 +135,7 @@ jobs:
           args: --release --out dist --interpreter python3.12
           sccache: 'true'
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-macos-${{ matrix.platform.target }}
           path: dist
@@ -140,14 +143,14 @@ jobs:
   sdist:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build sdist
         uses: PyO3/maturin-action@v1
         with:
           command: sdist
           args: --out dist
       - name: Upload sdist
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-sdist
           path: dist
@@ -163,7 +166,7 @@ jobs:
     # IMPORTANT: this permission is mandatory for trusted publishing
       id-token: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
       - name: Publish to PyPI
         uses: PyO3/maturin-action@v1
         with:
