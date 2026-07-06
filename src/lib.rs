@@ -66,7 +66,6 @@ impl Hash for HashIntoType {
         H: Hasher,
     {
         state.write_u64(self.0);
-        let _ = state.finish();
     }
 }
 
