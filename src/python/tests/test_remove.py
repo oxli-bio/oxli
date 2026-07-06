@@ -56,9 +56,9 @@ def test_drop_hash(setup_kmer_table):
     # Edge case: Drop a hash that doesn't exist
     non_existent_hash = 999999999
     kct.drop_hash(non_existent_hash)  # Should not raise an error
-    assert (
-        kct.get_hash(non_existent_hash) == 0
-    ), "Expected non-existent hash removal to succeed."
+    assert kct.get_hash(non_existent_hash) == 0, (
+        "Expected non-existent hash removal to succeed."
+    )
 
 
 def test_mincut(setup_kmer_table):
@@ -90,20 +90,20 @@ def test_maxcut(setup_kmer_table):
     removed = kct.maxcut(2)
     assert removed == 1, "Expected 'CCCC/GGGG' to be removed."
     assert kct.get("GGGG") == 0, "Expected 'CCCC/GGGG' to be removed."
-    assert (
-        kct.get("AAAA") == 2
-    ), "Should not remove kmers with exact maxcut value, only greater."
+    assert kct.get("AAAA") == 2, (
+        "Should not remove kmers with exact maxcut value, only greater."
+    )
 
     # Edge case: Threshold is higher than all k-mer counts (remove none)
     removed = kct.maxcut(10)
     assert removed == 0, "Expected no k-mers to be removed since all counts are < 10."
-    assert (
-        len(kct.hashes) == 2
-    ), "Expected 2 records with counts < 10 to remain in the table."
+    assert len(kct.hashes) == 2, (
+        "Expected 2 records with counts < 10 to remain in the table."
+    )
 
     # Edge case: Threshold is lower than all k-mer counts (remove all)
     removed = kct.maxcut(0)
     assert removed == 2, "Expected no k-mers to be removed since all counts are > 0."
-    assert (
-        len(kct.hashes) == 0
-    ), "Expected 0 records with counts < 1 to remain in the table."
+    assert len(kct.hashes) == 0, (
+        "Expected 0 records with counts < 1 to remain in the table."
+    )
