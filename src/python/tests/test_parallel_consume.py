@@ -200,12 +200,15 @@ def test_parallel_consume_various_ksizes(ksize):
 # ── longer / random sequences ─────────────────────────────────────────────────
 
 
-@pytest.mark.parametrize("seq_len,chunk_size", [
-    (1000, 100),
-    (1000, 317),   # chunk_size not a divisor of seq_len
-    (5000, 500),
-    (10_000, 1000),
-])
+@pytest.mark.parametrize(
+    "seq_len,chunk_size",
+    [
+        (1000, 100),
+        (1000, 317),  # chunk_size not a divisor of seq_len
+        (5000, 500),
+        (10_000, 1000),
+    ],
+)
 def test_parallel_consume_random_seq(seq_len, chunk_size):
     """parallel_consume matches consume for random sequences of various sizes."""
     seq = random_dna(seq_len)
