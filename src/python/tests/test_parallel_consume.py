@@ -1,7 +1,6 @@
 import collections
 import pytest
 import random
-import string
 
 import oxli
 
@@ -17,7 +16,7 @@ def create_sample_kmer_table(ksize, kmers):
 def random_dna(length, seed=42):
     """Generate a random DNA sequence of the given length."""
     rng = random.Random(seed)
-    return "".join(rng.choice("ACGT") for _ in range(length))
+    return ''.join(rng.choice('ACGT') for _ in range(length))
 
 
 # ── basic correctness ─────────────────────────────────────────────────────────
@@ -26,14 +25,14 @@ def random_dna(length, seed=42):
 def test_consume_1_chunk():
     # test basic consume
     cg = oxli.KmerCountTable(4)
-    kmer = "ATCG"
+    kmer = 'ATCG'
 
     cg.parallel_consume(kmer, 4)
-    assert cg.get("ATCG") == 1
+    assert cg.get('ATCG') == 1
 
 
 def test_consume_2():
-    seq = "TAAACCCTAACCCTAACCCTAACCCTAACCC"
+    seq = 'TAAACCCTAACCCTAACCCTAACCCTAACCC'
     parallel_chunk_size = len(seq) // 2
 
     cg1 = oxli.KmerCountTable(ksize=4)
@@ -41,7 +40,7 @@ def test_consume_2():
     kh = cg1.kmers_and_hashes(seq, False)
 
     kmer_counter = collections.Counter()
-    for kmer, hashval in kh:
+    for kmer, _hashval in kh:
         kmer_counter[kmer] += 1
 
     cg1.parallel_consume(seq, parallel_chunk_size)
@@ -56,7 +55,7 @@ def test_consume_2():
 
 def test_parallel_consume_matches_consume():
     """parallel_consume produces identical counts to consume."""
-    seq = "TAAACCCTAACCCTAACCCTAACCCTAACCC"
+    seq = 'TAAACCCTAACCCTAACCCTAACCCTAACCC'
 
     cg1 = oxli.KmerCountTable(ksize=4)
     cg2 = oxli.KmerCountTable(ksize=4)
@@ -72,7 +71,7 @@ def test_parallel_consume_matches_consume():
 
 def test_parallel_consume_consumed_attr():
     """consumed attribute tracks total bases processed."""
-    seq = "TAAACCCTAACCCTAACCCTAACCCTAACCC"
+    seq = 'TAAACCCTAACCCTAACCCTAACCCTAACCC'
 
     cg1 = oxli.KmerCountTable(ksize=4)
     cg2 = oxli.KmerCountTable(ksize=4)
@@ -86,16 +85,16 @@ def test_parallel_consume_consumed_attr():
 
 def test_parallel_consume_short_seq():
     """Sequence shorter than chunk_size works correctly."""
-    seq = "ATCG"
+    seq = 'ATCG'
     cg = oxli.KmerCountTable(4)
     n = cg.parallel_consume(seq, 50000)
     assert n == 1
-    assert cg.get("ATCG") == 1
+    assert cg.get('ATCG') == 1
 
 
 def test_parallel_consume_with_store_kmers():
     """parallel_consume preserves hash-to-kmer mappings."""
-    seq = "TAAACCCTAACCCTAACCCTAACCCTAACCC"
+    seq = 'TAAACCCTAACCCTAACCCTAACCCTAACCC'
 
     cg1 = oxli.KmerCountTable(ksize=4, store_kmers=True)
     cg2 = oxli.KmerCountTable(ksize=4, store_kmers=True)
@@ -115,7 +114,7 @@ def test_parallel_consume_with_store_kmers():
 
 def test_parallel_consume_chunk_equals_seq_len():
     """chunk_size == len(seq) processes the whole sequence in one chunk."""
-    seq = "TAAACCCTAACCCTAACCCTAACCCTAACCC"
+    seq = 'TAAACCCTAACCCTAACCCTAACCCTAACCC'
 
     cg1 = oxli.KmerCountTable(ksize=4)
     cg2 = oxli.KmerCountTable(ksize=4)
@@ -130,7 +129,7 @@ def test_parallel_consume_chunk_equals_seq_len():
 
 def test_parallel_consume_chunk_larger_than_seq():
     """chunk_size > len(seq) behaves like a single consume call."""
-    seq = "TAAACCCTAACCCTAACCCTAACCCTAACCC"
+    seq = 'TAAACCCTAACCCTAACCCTAACCCTAACCC'
 
     cg1 = oxli.KmerCountTable(ksize=4)
     cg2 = oxli.KmerCountTable(ksize=4)
@@ -145,7 +144,7 @@ def test_parallel_consume_chunk_larger_than_seq():
 
 def test_parallel_consume_chunk_equals_ksize():
     """chunk_size equal to ksize (minimum valid chunk) works correctly."""
-    seq = "TAAACCCTAACCCTAACCCTAACCCTAACCC"
+    seq = 'TAAACCCTAACCCTAACCCTAACCCTAACCC'
     ksize = 4
 
     cg1 = oxli.KmerCountTable(ksize=ksize)
@@ -161,7 +160,7 @@ def test_parallel_consume_chunk_equals_ksize():
 
 def test_parallel_consume_many_small_chunks():
     """Many small chunks still produce the correct result."""
-    seq = "TAAACCCTAACCCTAACCCTAACCCTAACCC"
+    seq = 'TAAACCCTAACCCTAACCCTAACCCTAACCC'
     ksize = 4
 
     cg1 = oxli.KmerCountTable(ksize=ksize)
@@ -179,7 +178,7 @@ def test_parallel_consume_many_small_chunks():
 # ── k-mer size variations ─────────────────────────────────────────────────────
 
 
-@pytest.mark.parametrize("ksize", [3, 7, 15, 21, 31])
+@pytest.mark.parametrize('ksize', [3, 7, 15, 21, 31])
 def test_parallel_consume_various_ksizes(ksize):
     """parallel_consume matches consume for various k-mer sizes."""
     seq = random_dna(500, seed=ksize)
@@ -193,7 +192,7 @@ def test_parallel_consume_various_ksizes(ksize):
     assert n1 == n2
     for hashval in cg1.hashes:
         assert cg1.get_hash(hashval) == cg2.get_hash(hashval), (
-            f"Count mismatch for ksize={ksize}"
+            f'Count mismatch for ksize={ksize}'
         )
 
 
@@ -201,7 +200,7 @@ def test_parallel_consume_various_ksizes(ksize):
 
 
 @pytest.mark.parametrize(
-    "seq_len,chunk_size",
+    'seq_len,chunk_size',
     [
         (1000, 100),
         (1000, 317),  # chunk_size not a divisor of seq_len
@@ -230,13 +229,13 @@ def test_parallel_consume_random_seq(seq_len, chunk_size):
 
 def test_parallel_consume_skip_bad_kmers():
     """Bad k-mers are skipped when skip_bad_kmers=True (default)."""
-    seq = "ATCGNATCGATCG"  # N in middle
+    seq = 'ATCGNATCGATCG'  # N in middle
 
     cg1 = oxli.KmerCountTable(ksize=4)
     cg2 = oxli.KmerCountTable(ksize=4)
 
-    n1 = cg1.consume(seq, skip_bad_kmers=True)
-    n2 = cg2.parallel_consume(seq, 5, skip_bad_kmers=True)
+    cg1.consume(seq, skip_bad_kmers=True)
+    cg2.parallel_consume(seq, 5, skip_bad_kmers=True)
 
     # Both should have the same k-mers (bad ones skipped)
     assert cg1.consumed == cg2.consumed

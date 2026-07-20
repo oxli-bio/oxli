@@ -1,6 +1,6 @@
 <a href="https://opensource.org/licenses/BSD-3-Clause">
   <img src="https://img.shields.io/badge/License-BSD_3--Clause-blue.svg" align="left" height="20"/>
-</a> 
+</a>
 
 <br>
 
@@ -117,25 +117,25 @@ counts.consume_file('doc/example.fa')
 First, oxli is channeling
 [khmer](https://khmer.readthedocs.io/en/latest/), a package written by
 @ctb and many others.  You shouldn't be too surprised to see useful
-functionality from khmer making an appearance in oxli.  
+functionality from khmer making an appearance in oxli.
 
 The khmer package was useful for inspecting large collections of
-k-mers, but was hard to maintain and evolve.  
+k-mers, but was hard to maintain and evolve.
 
 In ~2016 @ctb's lab more or less switched over to developing
 sourmash, which was initially built on a similar tech stack to khmer
-(Python & C++).  
-  
-At some point, @luizirber rewrote the sourmash C++ code into Rust.  
+(Python & C++).
 
-This forced @ctb to learn Rust to maintain sourmash.  
+At some point, @luizirber rewrote the sourmash C++ code into Rust.
+
+This forced @ctb to learn Rust to maintain sourmash.
 
 @ctb then decided he liked Rust an awful lot, and missed some of the
-khmer functionality.  
-  
+khmer functionality.
+
 And, voila! oxli was born.
 
 ## Authors
 
-* C. Titus Brown (@ctb), ctbrown@ucdavis.edu  
+* C. Titus Brown (@ctb), ctbrown@ucdavis.edu
 * Adam Taranto (@Adamtaranto)

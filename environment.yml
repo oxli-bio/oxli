@@ -1,11 +1,11 @@
 name: oxli-dev
 channels:
-    - conda-forge
-    - bioconda
+  - conda-forge
+  - bioconda
 dependencies:
-    - compilers
-    - maturin>=1,<2
-    - pytest
-    - rust
-    - scipy
-    - toml
+  - compilers
+  - maturin>=1,<2
+  - pytest
+  - rust
+  - scipy
+  - toml

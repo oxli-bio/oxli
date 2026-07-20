@@ -10,11 +10,11 @@ from oxli import KmerCountTable
 def kmer_count_table():
     """Fixture to set up a KmerCountTable instance with sample data."""
     kct = KmerCountTable(ksize=4, store_kmers=True)
-    kct.count("AAAA")  # 17832910516274425539
-    kct.count("TTTT")  # 17832910516274425539
-    kct.count("AATT")  # 382727017318141683
-    kct.count("GGGG")  # 73459868045630124
-    kct.count("GGGG")  # 73459868045630124
+    kct.count('AAAA')  # 17832910516274425539
+    kct.count('TTTT')  # 17832910516274425539
+    kct.count('AATT')  # 382727017318141683
+    kct.count('GGGG')  # 73459868045630124
+    kct.count('GGGG')  # 73459868045630124
     return kct
 
 
@@ -27,7 +27,7 @@ def empty_kmer_count_table():
 def test_dump_conflicting_sort_options(kmer_count_table):
     """Test that passing both sortcounts=True and sortkeys=True raises a ValueError."""
     with pytest.raises(
-        ValueError, match="Cannot sort by both counts and keys at the same time."
+        ValueError, match='Cannot sort by both counts and keys at the same time.'
     ):
         kmer_count_table.dump(file=None, sortcounts=True, sortkeys=True)
 
@@ -40,7 +40,7 @@ def test_dump_no_sorting(kmer_count_table):
     expected = list(kmer_count_table)
     # [(17832910516274425539, 2), (382727017318141683, 1), (73459868045630124, 2)]
 
-    assert result == expected, f"Expected {expected}, but got {result}"
+    assert result == expected, f'Expected {expected}, but got {result}'
 
 
 def test_dump_sortcounts_with_ties(kmer_count_table):
@@ -54,13 +54,13 @@ def test_dump_sortcounts_with_ties(kmer_count_table):
         (17832910516274425539, 2),  # 'AAAA'/'TTTT'
     ]
 
-    assert result == expected, f"Expected {expected}, but got {result}"
+    assert result == expected, f'Expected {expected}, but got {result}'
 
 
 def test_dump_single_kmer():
     """Test the dump function with only a single k-mer counted."""
     kct = KmerCountTable(ksize=4)
-    kct.count("AAAA")  # Hash for 'AAAA'/'TTTT'
+    kct.count('AAAA')  # Hash for 'AAAA'/'TTTT'
 
     result = kct.dump(file=None, sortcounts=True, sortkeys=False)
 
@@ -68,7 +68,7 @@ def test_dump_single_kmer():
         (17832910516274425539, 1)  # 'AAAA'/'TTTT'
     ]
 
-    assert result == expected, f"Expected {expected}, but got {result}"
+    assert result == expected, f'Expected {expected}, but got {result}'
 
 
 def test_dump_write_to_file(kmer_count_table):
@@ -81,17 +81,17 @@ def test_dump_write_to_file(kmer_count_table):
 
     kmer_count_table.dump(file=temp_file_path, sortcounts=True, sortkeys=False)
 
-    with open(temp_file_path, "r") as f:
+    with open(temp_file_path, 'r') as f:
         lines = f.readlines()
 
     # Expected output sorted by count then hash (default behavior)
     expected_lines = [
-        f"{382727017318141683}\t1\n",  # 'AATT'
-        f"{73459868045630124}\t2\n",  # 'GGGG'
-        f"{17832910516274425539}\t2\n",  # 'AAAA'/'TTTT'
+        f'{382727017318141683}\t1\n',  # 'AATT'
+        f'{73459868045630124}\t2\n',  # 'GGGG'
+        f'{17832910516274425539}\t2\n',  # 'AAAA'/'TTTT'
     ]
 
-    assert lines == expected_lines, f"Expected {expected_lines}, but got {lines}"
+    assert lines == expected_lines, f'Expected {expected_lines}, but got {lines}'
 
     # Cleanup
     remove(temp_file_path)
@@ -104,17 +104,17 @@ def test_dump_write_to_file_sortkeys(kmer_count_table):
 
     kmer_count_table.dump(file=temp_file_path, sortkeys=True)
 
-    with open(temp_file_path, "r") as f:
+    with open(temp_file_path, 'r') as f:
         lines = f.readlines()
 
     # Expected output sorted by hash keys
     expected_lines = [
-        f"{73459868045630124}\t2\n",  # 'GGGG'
-        f"{382727017318141683}\t1\n",  # 'AATT'
-        f"{17832910516274425539}\t2\n",  # 'AAAA'/'TTTT'
+        f'{73459868045630124}\t2\n',  # 'GGGG'
+        f'{382727017318141683}\t1\n',  # 'AATT'
+        f'{17832910516274425539}\t2\n',  # 'AAAA'/'TTTT'
     ]
 
-    assert lines == expected_lines, f"Expected {expected_lines}, but got {lines}"
+    assert lines == expected_lines, f'Expected {expected_lines}, but got {lines}'
 
     # Cleanup
     remove(temp_file_path)
@@ -134,13 +134,13 @@ def test_dump_sortkeys(kmer_count_table):
         (17832910516274425539, 2),  # 'AAAA'/'TTTT'
     ]
 
-    assert result == expected, f"Expected {expected}, but got {result}"
+    assert result == expected, f'Expected {expected}, but got {result}'
 
 
 def test_dump_invalid_file_path(kmer_count_table):
     """Test that passing an invalid file path raises an error."""
     with pytest.raises(OSError):
-        kmer_count_table.dump(file="", sortkeys=True)
+        kmer_count_table.dump(file='', sortkeys=True)
 
 
 def test_dump_hash_empty_table(empty_kmer_count_table):
@@ -150,7 +150,7 @@ def test_dump_hash_empty_table(empty_kmer_count_table):
     """
     # Test that calling dump without file returns an empty list
     result = empty_kmer_count_table.dump(file=None, sortkeys=False)
-    assert result == [], "Expected an empty list from an empty KmerCountTable"
+    assert result == [], 'Expected an empty list from an empty KmerCountTable'
 
     # Test that calling dump with a file writes nothing to the file
     with tempfile.NamedTemporaryFile(delete=False) as temp_file:
@@ -158,10 +158,10 @@ def test_dump_hash_empty_table(empty_kmer_count_table):
 
     empty_kmer_count_table.dump(file=temp_file_path, sortkeys=False)
 
-    with open(temp_file_path, "r") as f:
+    with open(temp_file_path, 'r') as f:
         lines = f.readlines()
 
-    assert lines == [], "Expected an empty file for an empty KmerCountTable"
+    assert lines == [], 'Expected an empty file for an empty KmerCountTable'
 
     # Cleanup
     remove(temp_file_path)
@@ -173,7 +173,7 @@ def test_dump_hash_empty_table(empty_kmer_count_table):
 def test_dump_kmers_conflicting_sort_options(kmer_count_table):
     """Test that passing both sortcounts=True and sortkeys=True raises a ValueError."""
     with pytest.raises(
-        ValueError, match="Cannot sort by both counts and kmers at the same time."
+        ValueError, match='Cannot sort by both counts and kmers at the same time.'
     ):
         kmer_count_table.dump_kmers(file=None, sortcounts=True, sortkeys=True)
 
@@ -184,27 +184,27 @@ def test_dump_kmers_sortcounts_with_ties(kmer_count_table):
 
     # Expected output sorted by count, with secondary sorting by kmer for ties
     expected = [
-        ("AATT", 1),
+        ('AATT', 1),
         (
-            "AAAA",
+            'AAAA',
             2,
         ),  # 'AAAA'/'TTTT' is tied with 'GGGG / CCCC' on counts, 'AAAA' is lexicographically smaller
-        ("CCCC", 2),
+        ('CCCC', 2),
     ]
 
-    assert result == expected, f"Expected {expected}, but got {result}"
+    assert result == expected, f'Expected {expected}, but got {result}'
 
 
 def test_dump_kmers_single_kmer():
     """Test the dump_kmers function with only a single k-mer counted."""
     kct = KmerCountTable(ksize=4, store_kmers=True)
-    kct.count("AAAA")  # Canonical kmer: 'AAAA'
+    kct.count('AAAA')  # Canonical kmer: 'AAAA'
 
     result = kct.dump_kmers(file=None, sortcounts=True, sortkeys=False)
 
-    expected = [("AAAA", 1)]
+    expected = [('AAAA', 1)]
 
-    assert result == expected, f"Expected {expected}, but got {result}"
+    assert result == expected, f'Expected {expected}, but got {result}'
 
 
 def test_dump_kmers_write_to_file(kmer_count_table):
@@ -217,17 +217,17 @@ def test_dump_kmers_write_to_file(kmer_count_table):
 
     kmer_count_table.dump_kmers(file=temp_file_path, sortcounts=True, sortkeys=False)
 
-    with open(temp_file_path, "r") as f:
+    with open(temp_file_path, 'r') as f:
         lines = f.readlines()
 
     # Expected output sorted by count then kmer (default behavior)
     expected_lines = [
-        f"AATT\t1\n",
-        f"AAAA\t2\n",  # 'AAAA'/'TTTT'
-        f"CCCC\t2\n",
+        'AATT\t1\n',
+        'AAAA\t2\n',  # 'AAAA'/'TTTT'
+        'CCCC\t2\n',
     ]
 
-    assert lines == expected_lines, f"Expected {expected_lines}, but got {lines}"
+    assert lines == expected_lines, f'Expected {expected_lines}, but got {lines}'
 
     # Cleanup
     remove(temp_file_path)
@@ -240,17 +240,17 @@ def test_dump_kmers_write_to_file_sortkeys(kmer_count_table):
 
     kmer_count_table.dump_kmers(file=temp_file_path, sortkeys=True)
 
-    with open(temp_file_path, "r") as f:
+    with open(temp_file_path, 'r') as f:
         lines = f.readlines()
 
     # Expected output sorted by canonical kmers
     expected_lines = [
-        f"AAAA\t2\n",  # 'AAAA'/'TTTT'
-        f"AATT\t1\n",
-        f"CCCC\t2\n",
+        'AAAA\t2\n',  # 'AAAA'/'TTTT'
+        'AATT\t1\n',
+        'CCCC\t2\n',
     ]
 
-    assert lines == expected_lines, f"Expected {expected_lines}, but got {lines}"
+    assert lines == expected_lines, f'Expected {expected_lines}, but got {lines}'
 
     # Cleanup
     remove(temp_file_path)
@@ -265,18 +265,18 @@ def test_dump_kmers_sortkeys(kmer_count_table):
 
     # Expected output sorted by canonical kmer
     expected = [
-        ("AAAA", 2),  # 'AAAA'/'TTTT'
-        ("AATT", 1),
-        ("CCCC", 2),
+        ('AAAA', 2),  # 'AAAA'/'TTTT'
+        ('AATT', 1),
+        ('CCCC', 2),
     ]
 
-    assert result == expected, f"Expected {expected}, but got {result}"
+    assert result == expected, f'Expected {expected}, but got {result}'
 
 
 def test_dump_kmers_invalid_file_path(kmer_count_table):
     """Test that passing an invalid file path raises an error."""
     with pytest.raises(OSError):
-        kmer_count_table.dump_kmers(file="", sortkeys=True)
+        kmer_count_table.dump_kmers(file='', sortkeys=True)
 
 
 def test_dump_kmers_empty_table(empty_kmer_count_table):
@@ -286,7 +286,7 @@ def test_dump_kmers_empty_table(empty_kmer_count_table):
     """
     # Test that calling dump_kmers without file returns an empty list
     result = empty_kmer_count_table.dump_kmers(file=None, sortkeys=False)
-    assert result == [], "Expected an empty list from an empty KmerCountTable"
+    assert result == [], 'Expected an empty list from an empty KmerCountTable'
 
     # Test that calling dump_kmers with a file writes nothing to the file
     with tempfile.NamedTemporaryFile(delete=False) as temp_file:
@@ -294,10 +294,10 @@ def test_dump_kmers_empty_table(empty_kmer_count_table):
 
     empty_kmer_count_table.dump_kmers(file=temp_file_path, sortkeys=False)
 
-    with open(temp_file_path, "r") as f:
+    with open(temp_file_path, 'r') as f:
         lines = f.readlines()
 
-    assert lines == [], "Expected an empty file for an empty KmerCountTable"
+    assert lines == [], 'Expected an empty file for an empty KmerCountTable'
 
     # Cleanup
     remove(temp_file_path)
@@ -309,15 +309,15 @@ def test_drop_removes_kmer(kmer_count_table):
     Verify that the `dump_kmers()` function returns the remaining (kmer, count) pairs.
     """
     # Drop the k-mer "AATT"
-    kmer_count_table.drop("AATT")
+    kmer_count_table.drop('AATT')
 
     # Get the remaining k-mers using dump_kmers
     remaining_kmers = kmer_count_table.dump_kmers()
 
     # Check that "AATT" has been removed and other k-mers are still present
-    assert ("AATT", 1) not in remaining_kmers
-    assert ("AAAA", 2) in remaining_kmers
-    assert ("CCCC", 2) in remaining_kmers
+    assert ('AATT', 1) not in remaining_kmers
+    assert ('AAAA', 2) in remaining_kmers
+    assert ('CCCC', 2) in remaining_kmers
 
 
 def test_drop_hash_removes_kmer(kmer_count_table):
@@ -332,9 +332,9 @@ def test_drop_hash_removes_kmer(kmer_count_table):
     remaining_kmers = kmer_count_table.dump_kmers()
 
     # Check that "GGGG/CCCC" has been removed and other k-mers are still present
-    assert ("CCCC", 2) not in remaining_kmers
-    assert ("AAAA", 2) in remaining_kmers
-    assert ("AATT", 1) in remaining_kmers
+    assert ('CCCC', 2) not in remaining_kmers
+    assert ('AAAA', 2) in remaining_kmers
+    assert ('AATT', 1) in remaining_kmers
 
 
 def test_mincut_removes_low_count_kmers(kmer_count_table):
@@ -350,9 +350,9 @@ def test_mincut_removes_low_count_kmers(kmer_count_table):
 
     # Check that only "GGGG/CCCC" remains because its count is 2
     assert len(remaining_kmers) == 2
-    assert ("CCCC", 2) in remaining_kmers
-    assert ("AAAA", 2) in remaining_kmers
-    assert ("AATT", 1) not in remaining_kmers
+    assert ('CCCC', 2) in remaining_kmers
+    assert ('AAAA', 2) in remaining_kmers
+    assert ('AATT', 1) not in remaining_kmers
 
 
 def test_maxcut_removes_high_count_kmers(kmer_count_table):
@@ -368,6 +368,6 @@ def test_maxcut_removes_high_count_kmers(kmer_count_table):
 
     # Check that "GGGG/CCCC" has been removed and other k-mers with count 1 remain
     assert len(remaining_kmers) == 1
-    assert ("CCCC", 2) not in remaining_kmers
-    assert ("AAAA", 2) not in remaining_kmers
-    assert ("AATT", 1) in remaining_kmers
+    assert ('CCCC', 2) not in remaining_kmers
+    assert ('AAAA', 2) not in remaining_kmers
+    assert ('AATT', 1) in remaining_kmers
