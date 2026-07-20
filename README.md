@@ -99,6 +99,18 @@ for record in screed.open('doc/example.fa'):
 >>> 349910
 ```
 
+For convenience, `consume_file` reads a FASTA/FASTQ file directly using a fast
+native (needletail) parser, so no external parsing library is required. It
+transparently handles gzip/bzip2/xz-compressed files:
+
+```python
+counts = KmerCountTable(ksize=21)
+
+# Count k-mers from every record in the file (plain or compressed)
+counts.consume_file('doc/example.fa')
+>>> 349910
+```
+
 
 ## What's the history here?
 

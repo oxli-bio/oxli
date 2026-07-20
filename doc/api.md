@@ -28,6 +28,17 @@ Open a FASTA file and consume k-mers from all the sequences within:
 
 Here, `consume` reports the total number of k-mers consumed.
 
+Alternatively, `consume_file` reads a FASTA/FASTQ file directly with a fast
+native parser (needletail), transparently decompressing gzip/bzip2/xz inputs.
+It returns the total number of k-mers consumed across all records:
+
+```python
+>>> file_counts = oxli.KmerCountTable(ksize=31)
+>>> file_counts.consume_file('example.fa')
+349900
+
+```
+
 Get the count of `CGGAGGAAGCAAGAACAAAATATTTTTTCAT` in the data:
 
 ```python
