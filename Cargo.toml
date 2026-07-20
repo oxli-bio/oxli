@@ -17,7 +17,7 @@ harness = false
 anyhow = "1.0.102"
 env_logger = "0.11.10"
 log = "0.4.30"
-needletail = "0.5.1"
+needletail = "0.7.3"
 # Restrict niffler to the gzip backend. Its default `lzma` feature links the
 # native `lzma` library via liblzma-sys, which conflicts with needletail's own
 # lzma binding (xz2 -> lzma-sys). Table save/load only uses gzip, so gz alone is
