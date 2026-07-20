@@ -127,12 +127,82 @@ fn bench_parallel_consume_chunk_sizes(c: &mut Criterion) {
     group.finish();
 }
 
+/// Benchmark `KmerCountTable::kmers_and_hashes` over the whole genome fragment.
+///
+/// This is a distinct algorithm from `consume`: for every window it computes the
+/// reverse complement, selects the canonical k-mer, and allocates a
+/// `(String, hash)` tuple, so it exercises canonicalization and allocation rather
+/// than the counting hot path.
+fn bench_kmers_and_hashes(c: &mut Criterion) {
+    let sequence = load_genome_sequence();
+    // kmers_and_hashes only depends on `ksize`, so an empty table is sufficient.
+    let table = KmerCountTable::new(21, false);
+
+    let mut group = c.benchmark_group("kmers_and_hashes");
+    group.bench_function("akkermansia_k21", |b| {
+        b.iter(|| {
+            table
+                .kmers_and_hashes(black_box(&sequence), true)
+                .expect("kmers_and_hashes failed")
+        });
+    });
+    group.finish();
+}
+
+/// Benchmark `KmerCountTable::cosine`, the Rayon-parallel dot product plus
+/// magnitudes over two populated tables.
+fn bench_cosine(c: &mut Criterion) {
+    let sequence = load_genome_sequence();
+
+    // cosine is read-only, so both tables are built once outside the loop.
+    let mut a = KmerCountTable::new(21, false);
+    a.consume(&sequence, true).expect("consume failed");
+
+    // A partially-overlapping second table (first half of the sequence) so the
+    // similarity is non-trivial rather than a perfect 1.0.
+    let mut b_table = KmerCountTable::new(21, false);
+    let half = sequence.len() / 2;
+    b_table
+        .consume(&sequence[..half], true)
+        .expect("consume failed");
+
+    let mut group = c.benchmark_group("cosine");
+    group.bench_function("akkermansia_k21", |bch| {
+        bch.iter(|| a.cosine(black_box(&b_table)));
+    });
+    group.finish();
+}
+
+/// Benchmark `KmerCountTable::add`, the serial merge of another table's counts.
+///
+/// This is the same merge primitive that `parallel_consume` uses to combine
+/// per-chunk tables. `self` starts empty (O(1) to rebuild each iteration) so the
+/// measurement is dominated by merging `other`'s ~350k entries.
+fn bench_add(c: &mut Criterion) {
+    let sequence = load_genome_sequence();
+
+    let mut other = KmerCountTable::new(21, false);
+    other.consume(&sequence, true).expect("consume failed");
+
+    let mut group = c.benchmark_group("add");
+    group.bench_function("akkermansia_k21", |b| {
+        b.iter(|| {
+            let mut table = KmerCountTable::new(21, false);
+            table.add(black_box(&other)).expect("add failed");
+        });
+    });
+    group.finish();
+}
+
 // ── criterion entry points ────────────────────────────────────────────────────
 
 criterion_group!(
     benches,
     bench_consume,
     bench_parallel_consume,
-    bench_parallel_consume_chunk_sizes
+    bench_parallel_consume_chunk_sizes,
+    bench_kmers_and_hashes,
+    bench_cosine,
+    bench_add
 );
 criterion_main!(benches);

@@ -11,8 +11,8 @@ permissions:
   contents: read
   id-token: write # for OpenID Connect authentication with CodSpeed
 jobs:
-  benchmarks:
-    name: Run benchmarks
+  rust-benchmarks:
+    name: Rust benchmarks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -42,3 +42,24 @@ jobs:
         with:
           mode: simulation
           run: cargo codspeed run
+  python-benchmarks:
+    name: Python benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # maturin needs cargo to build the extension from the sdist/source tree.
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build oxli and install benchmark dependencies
+        # The maturin build backend compiles the extension; .[test] also pulls
+        # in pytest and pytest-codspeed.
+        run: |
+          python -m pip install --upgrade pip
+          pip install '.[test]'
+      - name: Run the benchmarks
+        uses: CodSpeedHQ/action@v4
+        with:
+          mode: simulation
+          run: pytest src/python/benchmarks --codspeed
