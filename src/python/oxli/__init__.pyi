@@ -8,7 +8,7 @@ checkers.
 
 from typing import Iterator
 
-__all__ = ["KmerCountTable"]
+__all__ = ['KmerCountTable']
 
 class KmerCountTable:
     """A hash table mapping canonical k-mer hashes to their counts.
@@ -301,9 +301,7 @@ class KmerCountTable:
         """
         ...
 
-    def kmers_and_hashes(
-        self, seq: str, skip_bad_kmers: bool
-    ) -> list[tuple[str, int]]:
+    def kmers_and_hashes(self, seq: str, skip_bad_kmers: bool) -> list[tuple[str, int]]:
         """Return the canonical k-mer and hash for each window of a sequence.
 
         Parameters
@@ -460,7 +458,7 @@ class KmerCountTable:
         ...
 
     @staticmethod
-    def load(filepath: str) -> "KmerCountTable":
+    def load(filepath: str) -> 'KmerCountTable':
         """Load a table previously written with :meth:`save`.
 
         Parameters
@@ -572,7 +570,7 @@ class KmerCountTable:
         """
         ...
 
-    def union(self, other: "KmerCountTable") -> set[int]:
+    def union(self, other: 'KmerCountTable') -> set[int]:
         """Return the union of hash keys with another table.
 
         Parameters
@@ -587,7 +585,7 @@ class KmerCountTable:
         """
         ...
 
-    def intersection(self, other: "KmerCountTable") -> set[int]:
+    def intersection(self, other: 'KmerCountTable') -> set[int]:
         """Return the intersection of hash keys with another table.
 
         Parameters
@@ -602,7 +600,7 @@ class KmerCountTable:
         """
         ...
 
-    def difference(self, other: "KmerCountTable") -> set[int]:
+    def difference(self, other: 'KmerCountTable') -> set[int]:
         """Return hashes present in this table but not another.
 
         Parameters
@@ -617,7 +615,7 @@ class KmerCountTable:
         """
         ...
 
-    def symmetric_difference(self, other: "KmerCountTable") -> set[int]:
+    def symmetric_difference(self, other: 'KmerCountTable') -> set[int]:
         """Return hashes present in exactly one of two tables.
 
         Parameters
@@ -632,7 +630,7 @@ class KmerCountTable:
         """
         ...
 
-    def add(self, other: "KmerCountTable") -> tuple[int, int]:
+    def add(self, other: 'KmerCountTable') -> tuple[int, int]:
         """Add the counts of another table into this one, in place.
 
         Parameters
@@ -653,7 +651,7 @@ class KmerCountTable:
         ...
 
     # ── similarity metrics ────────────────────────────────────────────────────
-    def jaccard(self, other: "KmerCountTable") -> float:
+    def jaccard(self, other: 'KmerCountTable') -> float:
         """Return the Jaccard similarity of k-mer sets with another table.
 
         Parameters
@@ -668,7 +666,7 @@ class KmerCountTable:
         """
         ...
 
-    def cosine(self, other: "KmerCountTable") -> float:
+    def cosine(self, other: 'KmerCountTable') -> float:
         """Return the cosine similarity of count vectors with another table.
 
         Parameters
@@ -688,7 +686,7 @@ class KmerCountTable:
     def __getitem__(self, kmer: str) -> int: ...
     def __setitem__(self, kmer: str, count: int) -> None: ...
     def __iter__(self) -> Iterator[tuple[int, int]]: ...
-    def __or__(self, other: "KmerCountTable") -> set[int]: ...
-    def __and__(self, other: "KmerCountTable") -> set[int]: ...
-    def __sub__(self, other: "KmerCountTable") -> set[int]: ...
-    def __xor__(self, other: "KmerCountTable") -> set[int]: ...
+    def __or__(self, other: 'KmerCountTable') -> set[int]: ...
+    def __and__(self, other: 'KmerCountTable') -> set[int]: ...
+    def __sub__(self, other: 'KmerCountTable') -> set[int]: ...
+    def __xor__(self, other: 'KmerCountTable') -> set[int]: ...

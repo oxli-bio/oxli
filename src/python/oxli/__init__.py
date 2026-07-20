@@ -1,4 +1,4 @@
-"""oxli: fast k-mer counting powered by Rust.
+"""Fast k-mer counting for genomic sequencing data, powered by Rust.
 
 This package exposes :class:`KmerCountTable`, implemented as a compiled
 extension module. The pure-Python ``__init__`` simply re-exports the compiled
@@ -9,4 +9,4 @@ hints and documentation for editors and type checkers.
 
 from .oxli import KmerCountTable
 
-__all__ = ["KmerCountTable"]
+__all__ = ['KmerCountTable']
