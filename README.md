@@ -112,6 +112,35 @@ counts.consume_file('doc/example.fa')
 ```
 
 
+## Benchmarking
+
+oxli has two complementary benchmark suites:
+
+- **Rust / criterion** (`benches/genome.rs`) — micro-benchmarks the core
+  `consume` / `parallel_consume` hot paths against the *E. coli* genome (fetched
+  from NCBI on first run, skipped if offline):
+
+  ```bash
+  make bench      # cargo bench
+  ```
+
+- **Python / [pytest-codspeed](https://github.com/CodSpeedHQ/pytest-codspeed)**
+  (`src/python/benchmarks/`) — benchmarks the full `KmerCountTable` API as called
+  from Python (sequence import, hashing, counting, retrieval, set operations,
+  similarity metrics, mutation, serialization, histograms) over the committed
+  `doc/example.fa`:
+
+  ```bash
+  pip install '.[test]'
+  make bench-py   # pytest src/python/benchmarks --codspeed
+  ```
+
+  The benchmarks live outside the test path, so the normal `make test` run does
+  not collect them. On pull requests the `CodSpeed` GitHub Actions workflow runs
+  this suite and reports performance changes (requires the CodSpeed app and a
+  `CODSPEED_TOKEN` secret to be configured on the repository).
+
+
 ## What's the history here?
 
 First, oxli is channeling

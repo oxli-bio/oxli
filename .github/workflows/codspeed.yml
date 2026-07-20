@@ -1,0 +1,41 @@
+# Continuous benchmarking with CodSpeed.
+#
+# Runs the pytest-codspeed suite in src/python/benchmarks on every PR and on
+# pushes to main, reporting performance changes back to the PR.
+#
+# SETUP REQUIRED (one-time, by a repo admin):
+#   1. Install the CodSpeed GitHub app on this repository
+#      (https://codspeed.io -> add repository).
+#   2. Add the repository secret CODSPEED_TOKEN with the project token CodSpeed
+#      provides.
+# Until both are done this workflow will run but its upload step is a no-op.
+name: CodSpeed
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  benchmarks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Build oxli and install benchmark dependencies
+        # The maturin build backend compiles the extension; .[test] pulls in
+        # pytest and pytest-codspeed.
+        run: |
+          python -m pip install --upgrade pip
+          pip install '.[test]'
+      - name: Run benchmarks
+        uses: CodSpeedHQ/action@v3
+        with:
+          run: pytest src/python/benchmarks --codspeed
+          token: ${{ secrets.CODSPEED_TOKEN }}

@@ -29,7 +29,7 @@ repos:
     rev: v1.11.0rc0
     hooks:
       - id: numpydoc-validation
-        exclude: (src/python/tests/|doc/).*
+        exclude: (src/python/tests/|src/python/benchmarks/|doc/).*
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.12
     hooks:
