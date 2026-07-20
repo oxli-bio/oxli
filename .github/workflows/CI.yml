@@ -157,8 +157,16 @@ jobs:
     permissions:
       # IMPORTANT: this permission is mandatory for trusted publishing
       id-token: write
+      # Used to generate the build-provenance attestation for the artifacts
+      attestations: write
+      # Used to write the attestation to the repository
+      contents: write
     steps:
       - uses: actions/download-artifact@v8
+      - name: Generate artifact attestation
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: 'wheels-*/*'
       - name: Publish to PyPI
         uses: PyO3/maturin-action@v1
         with:
