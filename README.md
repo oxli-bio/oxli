@@ -1,7 +1,9 @@
 <a href="https://opensource.org/licenses/BSD-3-Clause">
   <img src="https://img.shields.io/badge/License-BSD_3--Clause-blue.svg" align="left" height="20"/>
+</a>
+<a href="https://app.codspeed.io/oxli-bio/oxli?utm_source=badge">
+  <img src="https://img.shields.io/endpoint?url=https://codspeed.io/badge.json" alt="CodSpeed" align="left" height="20"/>
 </a> 
-
 <br>
 
 # oxli
@@ -99,31 +101,72 @@ for record in screed.open('doc/example.fa'):
 >>> 349910
 ```
 
+For convenience, `consume_file` reads a FASTA/FASTQ file directly using a fast
+native (needletail) parser, so no external parsing library is required. It
+transparently handles gzip/bzip2/xz-compressed files:
+
+```python
+counts = KmerCountTable(ksize=21)
+
+# Count k-mers from every record in the file (plain or compressed)
+counts.consume_file('doc/example.fa')
+>>> 349910
+```
+
+
+## Benchmarking
+
+oxli has two complementary benchmark suites:
+
+- **Rust / criterion** (`benches/genome.rs`) — micro-benchmarks the core
+  `consume` / `parallel_consume` hot paths against the *E. coli* genome (fetched
+  from NCBI on first run, skipped if offline):
+
+  ```bash
+  make bench      # cargo bench
+  ```
+
+- **Python / [pytest-codspeed](https://github.com/CodSpeedHQ/pytest-codspeed)**
+  (`src/python/benchmarks/`) — benchmarks the full `KmerCountTable` API as called
+  from Python (sequence import, hashing, counting, retrieval, set operations,
+  similarity metrics, mutation, serialization, histograms) over the committed
+  `doc/example.fa`:
+
+  ```bash
+  pip install '.[test]'
+  make bench-py   # pytest src/python/benchmarks --codspeed
+  ```
+
+  The benchmarks live outside the test path, so the normal `make test` run does
+  not collect them. On pull requests the `CodSpeed` GitHub Actions workflow runs
+  this suite and reports performance changes (requires the CodSpeed app and a
+  `CODSPEED_TOKEN` secret to be configured on the repository).
+
 
 ## What's the history here?
 
 First, oxli is channeling
 [khmer](https://khmer.readthedocs.io/en/latest/), a package written by
 @ctb and many others.  You shouldn't be too surprised to see useful
-functionality from khmer making an appearance in oxli.  
+functionality from khmer making an appearance in oxli.
 
 The khmer package was useful for inspecting large collections of
-k-mers, but was hard to maintain and evolve.  
+k-mers, but was hard to maintain and evolve.
 
 In ~2016 @ctb's lab more or less switched over to developing
 sourmash, which was initially built on a similar tech stack to khmer
-(Python & C++).  
-  
-At some point, @luizirber rewrote the sourmash C++ code into Rust.  
+(Python & C++).
 
-This forced @ctb to learn Rust to maintain sourmash.  
+At some point, @luizirber rewrote the sourmash C++ code into Rust.
+
+This forced @ctb to learn Rust to maintain sourmash.
 
 @ctb then decided he liked Rust an awful lot, and missed some of the
-khmer functionality.  
-  
+khmer functionality.
+
 And, voila! oxli was born.
 
 ## Authors
 
-* C. Titus Brown (@ctb), ctbrown@ucdavis.edu  
+* C. Titus Brown (@ctb), ctbrown@ucdavis.edu
 * Adam Taranto (@Adamtaranto)

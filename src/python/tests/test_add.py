@@ -8,8 +8,8 @@ def test_add_basic():
     table1 = KmerCountTable(5)
     table2 = KmerCountTable(5)
 
-    table1.consume("ATGCATGCA")
-    table2.consume("ATGCATGCA")
+    table1.consume('ATGCATGCA')
+    table2.consume('ATGCATGCA')
 
     counts_added, new_keys = table1.add(table2)
 
@@ -23,8 +23,8 @@ def test_add_different_content():
     table1 = KmerCountTable(5)
     table2 = KmerCountTable(5)
 
-    table1.consume("ATGCATGCA")
-    table2.consume("TGCATGCATGG")
+    table1.consume('ATGCATGCA')
+    table2.consume('TGCATGCATGG')
 
     counts_added, new_keys = table1.add(table2)
 
@@ -60,7 +60,7 @@ def test_add_to_empty_table():
     table1 = KmerCountTable(5)
     table2 = KmerCountTable(5)
 
-    table2.consume("ATGCATGCA")
+    table2.consume('ATGCATGCA')
 
     counts_added, new_keys = table1.add(table2)
 
@@ -75,8 +75,8 @@ def test_add_consumed_attribute():
     table1 = KmerCountTable(5)
     table2 = KmerCountTable(5)
 
-    table1.consume("ATGCA")
-    table2.consume("TGCAT")
+    table1.consume('ATGCA')
+    table2.consume('TGCAT')
 
     initial_consumed = table1.consumed
     table1.add(table2)
@@ -85,7 +85,7 @@ def test_add_consumed_attribute():
 
 
 @pytest.mark.parametrize(
-    "store_kmers1,store_kmers2",
+    'store_kmers1,store_kmers2',
     [(True, True), (True, False), (False, True), (False, False)],
 )
 def test_add_store_kmers_combinations(store_kmers1, store_kmers2, capfd):
@@ -93,8 +93,8 @@ def test_add_store_kmers_combinations(store_kmers1, store_kmers2, capfd):
     table1 = KmerCountTable(5, store_kmers=store_kmers1)
     table2 = KmerCountTable(5, store_kmers=store_kmers2)
 
-    table1.consume("ATGCA")
-    table2.consume("GGCAT")
+    table1.consume('ATGCA')
+    table2.consume('GGCAT')
 
     counts_added, new_keys = table1.add(table2)
 
@@ -103,10 +103,10 @@ def test_add_store_kmers_combinations(store_kmers1, store_kmers2, capfd):
 
     captured = capfd.readouterr()
     if store_kmers1 and not store_kmers2:
-        assert "Warning: Incoming table does not store k-mers" in captured.err
+        assert 'Warning: Incoming table does not store k-mers' in captured.err
 
     if store_kmers1 and store_kmers2:
-        assert table1.dump_kmers(sortkeys=True) == [("ATGCA", 1), ("ATGCC", 1)]
+        assert table1.dump_kmers(sortkeys=True) == [('ATGCA', 1), ('ATGCC', 1)]
 
 
 def test_add_large_tables():
@@ -114,7 +114,7 @@ def test_add_large_tables():
     table1 = KmerCountTable(5)
     table2 = KmerCountTable(5)
 
-    long_seq = "ATGC" * 100000  # 400,000 base pairs
+    long_seq = 'ATGC' * 100000  # 400,000 base pairs
     table1.consume(long_seq)
     table2.consume(long_seq)
 
@@ -131,9 +131,9 @@ def test_add_multiple_times():
     table2 = KmerCountTable(5)
     table3 = KmerCountTable(5)
 
-    table1.consume("ATGCA")
-    table2.consume("TGCAT")
-    table3.consume("GCATG")
+    table1.consume('ATGCA')
+    table2.consume('TGCAT')
+    table3.consume('GCATG')
 
     table1.add(table2)
     counts_added, new_keys = table1.add(table3)
@@ -156,5 +156,5 @@ def test_add_multiple_times():
 
 
 # Run the tests
-if __name__ == "__main__":
+if __name__ == '__main__':
     pytest.main([__file__])

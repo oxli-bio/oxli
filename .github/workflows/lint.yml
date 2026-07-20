@@ -3,7 +3,6 @@
 #
 #    maturin generate-ci github
 #
-
 name: "lint"
 on:
   pull_request:
@@ -13,49 +12,40 @@ jobs:
   rust_on_linux:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v7
-      with:
-        fetch-depth: 0
-
-    - name: cache conda
-      uses: actions/cache@v6
-      env:
-        CACHE_NUMBER: 1
-      with:
-        path: ~/conda_pkgs_dir
-        key:
-          ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('environment.yml') }}
-
-    - name: cache rust
-      uses: Swatinem/rust-cache@v2
-
-    - name: setup conda
-      uses: conda-incubator/setup-miniconda@v4
-      with:
-        auto-update-conda: true
-        python-version: 3.12
-        channels: conda-forge,bioconda
-        miniforge-variant: Miniforge3
-        miniforge-version: latest
-        use-mamba: true # Prioritise mamba over conda if available
-        mamba-version: "*"
-        activate-environment: sourmash_dev # Unclear if this env is created or not
-        auto-activate-base: false
-#        use-only-tar-bz2: true
-
-    - run: conda info
-    - run: conda list
-    - run: conda config --show
-
-    - run: mamba search rust
-
-    - name: install dependencies
-      shell: bash -l {0}
-      run: mamba install rust==1.75.0
-
-    - name: install dependencies 2
-      shell: bash -l {0}
-      run: mamba install compilers maturin pytest pandas
-
-    - name: Run cargo fmt
-      run: cargo fmt --all -- --check --verbose
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: cache conda
+        uses: actions/cache@v6
+        env:
+          CACHE_NUMBER: 1
+        with:
+          path: ~/conda_pkgs_dir
+          key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('environment.yml') }}
+      - name: cache rust
+        uses: Swatinem/rust-cache@v2
+      - name: setup conda
+        uses: conda-incubator/setup-miniconda@v4
+        with:
+          auto-update-conda: true
+          python-version: 3.12
+          channels: conda-forge,bioconda
+          miniforge-variant: Miniforge3
+          miniforge-version: latest
+          use-mamba: true # Prioritise mamba over conda if available
+          mamba-version: "*"
+          activate-environment: sourmash_dev # Unclear if this env is created or not
+          auto-activate: false
+      - run: conda info
+        #        use-only-tar-bz2: true
+      - run: conda list
+      - run: conda config --show
+      - run: mamba search rust
+      - name: install dependencies
+        shell: bash -l {0}
+        run: mamba install rust==1.75.0
+      - name: install dependencies 2
+        shell: bash -l {0}
+        run: mamba install compilers maturin pytest pandas
+      - name: Run cargo fmt
+        run: cargo fmt --all -- --check --verbose

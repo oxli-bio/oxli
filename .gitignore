@@ -2,6 +2,19 @@
 
 /target
 
+# Sandpit
+.ideas/
+.plans/
+
+# Agent configs
+.claude/
+.claudeignore
+.env
+.mcp.json
+
+# Mac stuff
+.DS_Store
+
 # Dev files
 /dev
 
@@ -64,8 +77,6 @@ coverage.xml
 # Django stuff:
 *.log
 *.pot
-
-.DS_Store
 
 # Sphinx documentation
 docs/_build/

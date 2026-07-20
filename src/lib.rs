@@ -23,6 +23,11 @@ use serde::{Deserialize, Serialize};
 use sourmash::encodings::revcomp;
 use sourmash::encodings::HashFunctions;
 use sourmash::signature::SeqToHashes;
+// use sourmash::_hash_murmur;
+// use sourmash::sketch::nodegraph::Nodegraph;
+
+extern crate needletail;
+use needletail::{parse_fastx_file, Sequence};
 
 // Set version variable
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -539,33 +544,44 @@ impl KmerCountTable {
         self.counts.values().sum()
     }
 
-    // Consume this DNA string. Return total number of k-mers consumed.
-    // If "skip_bad_kmers = true" then ignore kmers with non-DNA characters
-    // else if "false" consume kmers until a bad kmer in encountered, then
-    // exit with error.
+    /// Internal engine shared by `consume` and `consume_file`.
+    ///
+    /// Counts the canonical k-mers of the raw sequence bytes `seq` and returns
+    /// the number of k-mers consumed. When `store_kmers` is enabled on the
+    /// table, the hash -> canonical-k-mer mapping is populated as a side effect
+    /// (driven by `KmersAndHashesIter`); otherwise the faster `SeqToHashes`
+    /// path is used. `skip_bad_kmers` controls whether non-DNA k-mers are
+    /// silently skipped (true) or raise an error (false).
     #[pyo3(signature = (seq, skip_bad_kmers=true))]
-    pub fn consume(&mut self, seq: &str, skip_bad_kmers: bool) -> PyResult<u64> {
-        // Incoming seq len
+    fn consume_bytes(&mut self, seq: &[u8], skip_bad_kmers: bool) -> PyResult<u64> {
+        // Raw bytes processed (added to the `consumed` tracker below).
         let new_len = seq.len();
-        // Init tally for consumed kmers
+        // Running tally of k-mers consumed.
         let mut n = 0;
-        // If store_kmers is true, then count & log hash:kmer pairs
+
+        // If store_kmers is true, count & log hash:kmer pairs.
         if self.store_kmers {
+            // KmersAndHashesIter works on &str, so the bytes must be valid UTF-8.
+            // needletail's `normalize` yields ASCII, so this only fails on
+            // genuinely malformed input.
+            let seq_str = std::str::from_utf8(seq).map_err(|_| {
+                PyValueError::new_err("sequence contains invalid (non-UTF-8) bytes")
+            })?;
             let hash_to_kmer = self.hash_to_kmer.as_mut().unwrap();
 
-            // Create an iterator for (canonical_kmer, hash) pairs
-            let iter = KmersAndHashesIter::new(seq, self.ksize as usize, skip_bad_kmers);
+            // Create an iterator for (canonical_kmer, hash) pairs.
+            let iter = KmersAndHashesIter::new(seq_str, self.ksize as usize, skip_bad_kmers);
 
-            // Iterate over the k-mers and their hashes
+            // Iterate over the k-mers and their hashes.
             for result in iter {
                 match result {
                     Ok((kmer, hash)) => {
                         if hash != 0 {
-                            // Insert hash:kmer pair into the hashmap
+                            // Insert hash:kmer pair into the hashmap.
                             hash_to_kmer.insert(hash, kmer.clone());
-                            // Increment the count for the hash
+                            // Increment the count for the hash.
                             *self.counts.entry(hash).or_insert(0) += 1;
-                            // Tally kmers added
+                            // Tally kmers added.
                             n += 1;
                         }
                     }
@@ -573,9 +589,9 @@ impl KmerCountTable {
                 }
             }
         } else {
-            // Else, hash and count kmers as usual
+            // Else, hash and count kmers as usual.
             let hashes = SeqToHashes::new(
-                seq.as_bytes(),
+                seq,
                 self.ksize.into(),
                 skip_bad_kmers,
                 false,
@@ -585,7 +601,6 @@ impl KmerCountTable {
             .expect("Failed to create SeqToHashes");
 
             for hash_value in hashes {
-                // eprintln!("hash_value: {:?}", hash_value);
                 match hash_value {
                     Ok(0) => continue,
                     Ok(x) => {
@@ -601,8 +616,57 @@ impl KmerCountTable {
             }
         }
 
-        // Update the total sequence consumed tracker
+        // Update the total sequence consumed tracker.
         self.consumed += new_len as u64;
+
+        Ok(n)
+    }
+
+    // Consume this DNA string. Return total number of k-mers consumed.
+    // If "skip_bad_kmers = true" then ignore kmers with non-DNA characters
+    // else if "false" consume kmers until a bad kmer is encountered, then
+    // exit with error.
+    #[pyo3(signature = (seq, skip_bad_kmers=true))]
+    pub fn consume(&mut self, seq: &str, skip_bad_kmers: bool) -> PyResult<u64> {
+        // Thin wrapper over the shared byte-level engine.
+        self.consume_bytes(seq.as_bytes(), skip_bad_kmers)
+    }
+
+    /// Consume all sequences from a FASTA/FASTQ file. Return total k-mers consumed.
+    ///
+    /// The file is parsed with needletail, which auto-detects the format and
+    /// transparently decompresses gzip/bzip2/xz inputs. Each record is
+    /// normalized (upper-cased, line breaks stripped) and its k-mers counted
+    /// via `consume_bytes`, so `store_kmers` is honoured when enabled.
+    /// `skip_bad_kmers` behaves as in `consume`.
+    #[pyo3(signature = (filename, skip_bad_kmers=true))]
+    pub fn consume_file(&mut self, filename: &str, skip_bad_kmers: bool) -> PyResult<u64> {
+        // Total k-mers consumed across all records.
+        let mut n: u64 = 0;
+        // Number of records processed (for logging).
+        let mut n_records: u64 = 0;
+
+        // Open the file; needletail auto-detects the format and compression.
+        let mut reader = parse_fastx_file(filename)
+            .map_err(|e| PyIOError::new_err(format!("failed to open '{}': {}", filename, e)))?;
+
+        // Iterate over each sequence record in the file.
+        while let Some(record) = reader.next() {
+            let record = record.map_err(|e| {
+                PyValueError::new_err(format!("invalid record in '{}': {}", filename, e))
+            })?;
+
+            // Normalise the sequence (upper-case, strip newlines/whitespace),
+            // then count its k-mers, propagating any bad-k-mer error.
+            let normseq = record.normalize(false);
+            n += self.consume_bytes(normseq.as_ref(), skip_bad_kmers)?;
+            n_records += 1;
+        }
+
+        debug!(
+            "consume_file: processed {} record(s), {} k-mer(s) from '{}'",
+            n_records, n, filename
+        );
 
         Ok(n)
     }
