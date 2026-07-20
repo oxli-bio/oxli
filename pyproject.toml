@@ -24,6 +24,8 @@ dynamic = ["version"]
 
 license = { file = "LICENSE" }
 
+dependencies = ["scipy"]
+
 [tool.maturin]
 features = ["pyo3/extension-module"]
 # Mixed Rust/Python layout: the compiled extension is placed inside the `oxli`
@@ -32,7 +34,8 @@ python-source = "src/python"
 module-name = "oxli.oxli"
 
 [project.optional-dependencies]
-test = ["pytest>=7.0", "toml>=0.10", "scipy"]
+test = ["pytest>=7.0", "toml>=0.10", "pytest-codspeed", "pytest-cov"]
+dev = ["isort", "numpydoc-validation", "pre-commit", "ruff"]
 
 [tool.pytest.ini_options]
 addopts = "-v"
