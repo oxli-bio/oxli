@@ -1,7 +1,9 @@
 <a href="https://opensource.org/licenses/BSD-3-Clause">
   <img src="https://img.shields.io/badge/License-BSD_3--Clause-blue.svg" align="left" height="20"/>
 </a>
-
+<a href="https://app.codspeed.io/oxli-bio/oxli?utm_source=badge">
+  <img src="https://img.shields.io/endpoint?url=https://codspeed.io/badge.json" alt="CodSpeed" align="left" height="20"/>
+</a> 
 <br>
 
 # oxli
