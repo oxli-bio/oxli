@@ -1,8 +1,13 @@
 // Standard library imports
+use std::cmp::max;
 use std::collections::hash_map::IntoIter;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Write};
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Mutex,
+};
 //use std::path::Path;
 
 // External crate imports
@@ -10,7 +15,7 @@ use anyhow::{anyhow, Result};
 use log::debug;
 use niffler::compression::Format;
 use niffler::get_writer;
-use pyo3::exceptions::{PyIOError, PyValueError};
+use pyo3::exceptions::{PyIOError, PyKeyError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::PyResult;
 use rayon::prelude::*;
@@ -22,7 +27,7 @@ use sourmash::signature::SeqToHashes;
 // use sourmash::sketch::nodegraph::Nodegraph;
 
 extern crate needletail;
-use needletail::{parse_fastx_file, FastxReader, Sequence};
+use needletail::{parse_fastx_file, Sequence};
 
 // Set version variable
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -30,36 +35,41 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 #[pyclass]
 #[derive(Serialize, Deserialize, Debug)]
 /// Basic KmerCountTable struct, mapping hashes to counts.
-struct KmerCountTable {
+pub struct KmerCountTable {
     counts: HashMap<u64, u64>,
     pub ksize: u8,
     version: String,
     consumed: u64,
+    store_kmers: bool, // Store hash:kmer mapping if true
+    hash_to_kmer: Option<HashMap<u64, String>>,
 }
 
 #[pymethods]
-/// Methods on KmerCountTable.
 impl KmerCountTable {
+    /// Constructor for KmerCountTable
     #[new]
-    #[pyo3(signature = (ksize))]
-    pub fn new(ksize: u8) -> Self {
+    #[pyo3(signature = (ksize, store_kmers=false))]
+    pub fn new(ksize: u8, store_kmers: bool) -> Self {
+        // Optional init HashMap for tracking hash:kmer pairs
+        let hash_to_kmer = if store_kmers {
+            Some(HashMap::new())
+        } else {
+            None
+        };
+        // Init new KmerCountTable
         Self {
             counts: HashMap::new(),
             ksize,
             version: VERSION.to_string(), // Initialize the version field
             consumed: 0,                  // Initialize the total sequence length tracker
+            store_kmers,
+            hash_to_kmer,
         }
     }
 
-    // TODO: Optionally store hash:kmer pair when counting a new kmer
-    // Modify KmerCountTable to optionally store map of hash:kmer
-    // Modify SeqToHashes to return canonical kmer & hash
-
-    // TODO: Add function to get canonical kmer using hash key
-
     /// Turn a k-mer into a hashval.
     pub fn hash_kmer(&self, kmer: String) -> Result<u64> {
-        if kmer.len() as u8 != self.ksize {
+        if (kmer.len() as u8) != self.ksize {
             Err(anyhow!("wrong ksize"))
         } else {
             let mut hashes = SeqToHashes::new(
@@ -69,10 +79,26 @@ impl KmerCountTable {
                 false,
                 HashFunctions::Murmur64Dna,
                 42,
-            );
+            )?;
 
             let hashval = hashes.next().expect("error hashing this k-mer");
             Ok(hashval?)
+        }
+    }
+
+    /// Unhash function to retrieve the canonical kmer for a given hash
+    pub fn unhash(&self, hash: u64) -> PyResult<String> {
+        if self.store_kmers {
+            if let Some(kmer) = self.hash_to_kmer.as_ref().unwrap().get(&hash) {
+                Ok(kmer.clone())
+            } else {
+                // Raise KeyError if hash does not exist
+                let msg = format!("Warning: Hash {} not found in table.", hash);
+                Err(PyKeyError::new_err(msg))
+            }
+        } else {
+            // Raise an error if store_kmers is false
+            Err(PyValueError::new_err("K-mer storage is not enabled."))
         }
     }
 
@@ -83,6 +109,44 @@ impl KmerCountTable {
         *count
     }
 
+    /// Return the canonical form of a k-mer: the lexicographically smaller of the k-mer or its reverse complement.
+    fn canon(&self, kmer: &str) -> PyResult<String> {
+        // Check if the k-mer length matches the table ksize
+        if kmer.len() != self.ksize as usize {
+            return Err(PyValueError::new_err(
+                "kmer size does not match count table ksize",
+            ));
+        }
+
+        // Convert k-mer to uppercase
+        let kmer_upper = kmer.to_uppercase();
+
+        // Ensure k-mer contains only valid DNA characters
+        if !kmer_upper.chars().all(|c| "ATCG".contains(c)) {
+            return Err(PyValueError::new_err("kmer contains invalid characters"));
+        }
+
+        // Compute the reverse complement
+        let rev_comp: String = kmer_upper
+            .chars()
+            .rev()
+            .map(|c| match c {
+                'A' => 'T',
+                'T' => 'A',
+                'C' => 'G',
+                'G' => 'C',
+                _ => c, // This should not happen due to earlier validation
+            })
+            .collect();
+
+        // Return the lexicographically smaller of kmer or its reverse complement
+        if kmer_upper <= rev_comp {
+            Ok(kmer_upper)
+        } else {
+            Ok(rev_comp)
+        }
+    }
+
     /// Increment the count of a k-mer by 1.
     pub fn count(&mut self, kmer: String) -> PyResult<u64> {
         if kmer.len() as u8 != self.ksize {
@@ -90,10 +154,21 @@ impl KmerCountTable {
                 "kmer size does not match count table ksize",
             ))
         } else {
-            self.consumed += kmer.len() as u64;
-            let hashval = self.hash_kmer(kmer)?;
-            let count = self.count_hash(hashval);
-            Ok(count)
+            let hashval = self.hash_kmer(kmer.clone())?; // Clone the kmer before passing it to hash_kmer
+            let count = self.count_hash(hashval); // count with count_hash() function, return tally
+            self.consumed += kmer.len() as u64; // Add kmer len to total consumed bases
+
+            if self.store_kmers {
+                // Get the canonical k-mer
+                let canonical_kmer = self.canon(&kmer)?;
+                // Optional: Store hash:kmer pair
+                self.hash_to_kmer
+                    .as_mut()
+                    .unwrap()
+                    .insert(hashval, canonical_kmer);
+            }
+
+            Ok(count) // Return the current total count for the hash
         }
     }
 
@@ -106,10 +181,7 @@ impl KmerCountTable {
         } else {
             let hashval = self.hash_kmer(kmer).expect("error hashing this k-mer");
 
-            let count = match self.counts.get(&hashval) {
-                Some(count) => count,
-                None => &0,
-            };
+            let count = self.counts.get(&hashval).unwrap_or(&0);
             debug!("get: hashval {}, count {}", hashval, count);
             Ok(*count)
         }
@@ -160,6 +232,7 @@ impl KmerCountTable {
     /// Remove all k-mers with counts less than a given threshold
     pub fn mincut(&mut self, min_count: u64) -> PyResult<u64> {
         // Create a vector to store the keys (hashes) to be removed
+
         let mut to_remove = Vec::new();
 
         // Iterate over the HashMap and identify keys with counts less than the threshold
@@ -313,6 +386,81 @@ impl KmerCountTable {
         }
     }
 
+    /// Dump (canonical_kmer,count) pairs, optional sorted by count or canonical kmer.
+    ///
+    /// # Arguments
+    /// * `file` - Optional file path to write the output. If not provided, returns a list of tuples.
+    /// * `sortkeys` - Optional flag to sort by canonical kmers (default: False).
+    /// * `sortcounts` - Sort on counts, secondary sort on canonical kmers. (default: False).
+    #[pyo3(signature = (file=None, sortcounts=false, sortkeys=false))]
+    pub fn dump_kmers(
+        &self,
+        file: Option<String>,
+        sortcounts: bool,
+        sortkeys: bool,
+    ) -> PyResult<Vec<(String, u64)>> {
+        // Ensure that the hash:kmer mapping is stored
+        if !self.store_kmers {
+            return Err(PyValueError::new_err(
+                "K-mer storage is disabled. No hash:kmer map is available.",
+            ));
+        }
+
+        // Raise an error if both sortcounts and sortkeys are true
+        if sortcounts && sortkeys {
+            return Err(PyValueError::new_err(
+                "Cannot sort by both counts and kmers at the same time.",
+            ));
+        }
+
+        // Collect canonical k-mers and their counts, skipping those not found in the counts table
+        let mut kmer_count_pairs: Vec<(&String, &u64)> = self
+            .hash_to_kmer
+            .as_ref()
+            .unwrap()
+            .par_iter() // Use rayon for parallel iteration
+            .filter_map(|(&hash, kmer)| {
+                // Use filter_map to only include (kmer, count) pairs where the count exists
+                self.counts.get(&hash).map(|count| (kmer, count))
+            })
+            .collect();
+
+        // Handle sorting based on the flags
+        if sortkeys {
+            // Sort by canonical kmer lexicographically
+            kmer_count_pairs.par_sort_by_key(|&(kmer, _)| kmer.clone());
+        } else if sortcounts {
+            // Sort by count, secondary sort by kmer
+            kmer_count_pairs.par_sort_by(|&(kmer1, count1), &(kmer2, count2)| {
+                count1.cmp(count2).then_with(|| kmer1.cmp(kmer2))
+            });
+        }
+        // If both sortcounts and sortkeys are false, no sorting is done.
+
+        // If a file is provided, write to the file
+        if let Some(filepath) = file {
+            let f = File::create(filepath)?;
+            let mut writer = BufWriter::new(f);
+
+            // Write each kmer:count pair to the file
+            for (kmer, count) in kmer_count_pairs {
+                writeln!(writer, "{}\t{}", kmer, count)?;
+            }
+
+            writer.flush()?; // Ensure all data is written to the file
+            Ok(vec![]) // Return an empty vector when writing to a file
+        } else {
+            // Convert the vector of references to owned values
+            let result: Vec<(String, u64)> = kmer_count_pairs
+                .into_par_iter() // Use rayon for parallel conversion
+                .map(|(kmer, &count)| (kmer.clone(), count))
+                .collect();
+
+            // Return the vector of (kmer, count) tuples
+            Ok(result)
+        }
+    }
+
     /// Calculates the frequency histogram for k-mer counts
     /// Returns a vector of tuples (frequency, count), where 'frequency' is
     /// the observed number of times a k-mer count occurred and 'count' is
@@ -396,73 +544,211 @@ impl KmerCountTable {
         self.counts.values().sum()
     }
 
+    /// Internal engine shared by `consume` and `consume_file`.
+    ///
+    /// Counts the canonical k-mers of the raw sequence bytes `seq` and returns
+    /// the number of k-mers consumed. When `store_kmers` is enabled on the
+    /// table, the hash -> canonical-k-mer mapping is populated as a side effect
+    /// (driven by `KmersAndHashesIter`); otherwise the faster `SeqToHashes`
+    /// path is used. `skip_bad_kmers` controls whether non-DNA k-mers are
+    /// silently skipped (true) or raise an error (false).
+    #[pyo3(signature = (seq, skip_bad_kmers=true))]
+    fn consume_bytes(&mut self, seq: &[u8], skip_bad_kmers: bool) -> PyResult<u64> {
+        // Raw bytes processed (added to the `consumed` tracker below).
+        let new_len = seq.len();
+        // Running tally of k-mers consumed.
+        let mut n = 0;
+
+        // If store_kmers is true, count & log hash:kmer pairs.
+        if self.store_kmers {
+            // KmersAndHashesIter works on &str, so the bytes must be valid UTF-8.
+            // needletail's `normalize` yields ASCII, so this only fails on
+            // genuinely malformed input.
+            let seq_str = std::str::from_utf8(seq).map_err(|_| {
+                PyValueError::new_err("sequence contains invalid (non-UTF-8) bytes")
+            })?;
+            let hash_to_kmer = self.hash_to_kmer.as_mut().unwrap();
+
+            // Create an iterator for (canonical_kmer, hash) pairs.
+            let iter = KmersAndHashesIter::new(seq_str, self.ksize as usize, skip_bad_kmers);
+
+            // Iterate over the k-mers and their hashes.
+            for result in iter {
+                match result {
+                    Ok((kmer, hash)) => {
+                        if hash != 0 {
+                            // Insert hash:kmer pair into the hashmap.
+                            hash_to_kmer.insert(hash, kmer.clone());
+                            // Increment the count for the hash.
+                            *self.counts.entry(hash).or_insert(0) += 1;
+                            // Tally kmers added.
+                            n += 1;
+                        }
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+        } else {
+            // Else, hash and count kmers as usual.
+            let hashes = SeqToHashes::new(
+                seq,
+                self.ksize.into(),
+                skip_bad_kmers,
+                false,
+                HashFunctions::Murmur64Dna,
+                42,
+            )
+            .expect("Failed to create SeqToHashes");
+
+            for hash_value in hashes {
+                match hash_value {
+                    Ok(0) => continue,
+                    Ok(x) => {
+                        self.count_hash(x);
+                    }
+                    Err(_) => {
+                        let msg = format!("bad k-mer encountered at position {}", n);
+                        return Err(PyValueError::new_err(msg));
+                    }
+                }
+
+                n += 1;
+            }
+        }
+
+        // Update the total sequence consumed tracker.
+        self.consumed += new_len as u64;
+
+        Ok(n)
+    }
+
     // Consume this DNA string. Return total number of k-mers consumed.
     // If "skip_bad_kmers = true" then ignore kmers with non-DNA characters
-    // else if "false" consume kmers until a bad kmer in encountered, then
+    // else if "false" consume kmers until a bad kmer is encountered, then
     // exit with error.
     #[pyo3(signature = (seq, skip_bad_kmers=true))]
-    fn consume_bytes(&mut self, seq: &[u8], skip_bad_kmers: bool) -> Result<u64> {
-        let hashes = SeqToHashes::new(
-            seq,
-            self.ksize.into(),
-            skip_bad_kmers,
-            false,
-            HashFunctions::Murmur64Dna,
-            42,
+    pub fn consume(&mut self, seq: &str, skip_bad_kmers: bool) -> PyResult<u64> {
+        // Thin wrapper over the shared byte-level engine.
+        self.consume_bytes(seq.as_bytes(), skip_bad_kmers)
+    }
+
+    /// Consume all sequences from a FASTA/FASTQ file. Return total k-mers consumed.
+    ///
+    /// The file is parsed with needletail, which auto-detects the format and
+    /// transparently decompresses gzip/bzip2/xz inputs. Each record is
+    /// normalized (upper-cased, line breaks stripped) and its k-mers counted
+    /// via `consume_bytes`, so `store_kmers` is honoured when enabled.
+    /// `skip_bad_kmers` behaves as in `consume`.
+    #[pyo3(signature = (filename, skip_bad_kmers=true))]
+    pub fn consume_file(&mut self, filename: &str, skip_bad_kmers: bool) -> PyResult<u64> {
+        // Total k-mers consumed across all records.
+        let mut n: u64 = 0;
+        // Number of records processed (for logging).
+        let mut n_records: u64 = 0;
+
+        // Open the file; needletail auto-detects the format and compression.
+        let mut reader = parse_fastx_file(filename)
+            .map_err(|e| PyIOError::new_err(format!("failed to open '{}': {}", filename, e)))?;
+
+        // Iterate over each sequence record in the file.
+        while let Some(record) = reader.next() {
+            let record = record.map_err(|e| {
+                PyValueError::new_err(format!("invalid record in '{}': {}", filename, e))
+            })?;
+
+            // Normalise the sequence (upper-case, strip newlines/whitespace),
+            // then count its k-mers, propagating any bad-k-mer error.
+            let normseq = record.normalize(false);
+            n += self.consume_bytes(normseq.as_ref(), skip_bad_kmers)?;
+            n_records += 1;
+        }
+
+        debug!(
+            "consume_file: processed {} record(s), {} k-mer(s) from '{}'",
+            n_records, n, filename
         );
 
-        let mut n = 0;
-        for hash_value in hashes {
-            // eprintln!("hash_value: {:?}", hash_value);
-            match hash_value {
-                Ok(0) => continue,
-                Ok(x) => {
-                    self.count_hash(x);
-                    ()
-                }
-                Err(_) => {
-                    let msg = format!("bad k-mer encountered at position {}", n);
-                    return Err(anyhow!(msg));
-                }
-            }
-
-            n += 1;
-        }
-
-        // Update the total sequence consumed tracker
-        self.consumed += seq.len() as u64;
-
         Ok(n)
     }
 
-    // Consume this DNA string. Return number of k-mers consumed.
-    #[pyo3(signature = (seq, skip_bad_kmers=true))]
-    pub fn consume(&mut self, seq: String, skip_bad_kmers: bool) -> PyResult<u64> {
-        match self.consume_bytes(seq.as_bytes(), skip_bad_kmers) {
-            Ok(n) => Ok(n),
-            Err(_) => {
-                //                    let msg = format!("bad k-mer encountered at position {}", n);
-                let msg = format!("invalid character in sequence");
-                Err(PyValueError::new_err(msg))
-            }
+    /// Consume a DNA string in parallel by splitting it into overlapping chunks,
+    /// processing each chunk concurrently using Rayon, and merging the results.
+    ///
+    /// Each chunk overlaps its neighbours by `ksize - 1` bases so that no k-mer
+    /// spanning a chunk boundary is missed.  After all chunks have been processed
+    /// the per-chunk tables are merged into `self` using a fast serial merge.
+    ///
+    /// # Arguments
+    /// * `seq`            - The DNA sequence to consume.
+    /// * `chunk_size`     - Target number of k-mers per chunk (clamped to at
+    ///                      least `ksize`).  Defaults to 50 000.
+    /// * `skip_bad_kmers` - If `true`, k-mers containing non-DNA characters are
+    ///                      silently skipped.  If `false`, the first bad k-mer
+    ///                      raises an error.  Defaults to `true`.
+    ///
+    /// # Returns
+    /// The total number of k-mers consumed (identical to what `consume` would
+    /// return for the same sequence).
+    #[pyo3(signature = (seq, chunk_size=50_000, skip_bad_kmers=true))]
+    pub fn parallel_consume(
+        &mut self,
+        seq: &str,
+        chunk_size: usize,
+        skip_bad_kmers: bool,
+    ) -> PyResult<u64> {
+        let ksize = self.ksize as usize;
+        let seq_len = seq.len();
+
+        // Nothing to do for sequences shorter than k.
+        if seq_len < ksize {
+            self.consumed += seq_len as u64;
+            return Ok(0);
         }
-    }
 
-    #[pyo3(signature = (filename, skip_bad_kmers=true))]
-    pub fn consume_file(&mut self, filename: String, skip_bad_kmers: bool) -> PyResult<u64> {
-        let mut n = 0;
-        let mut reader = parse_fastx_file(&filename).expect("foo");
+        // Clamp chunk_size so it is always >= ksize.
+        let chunk_size = max(chunk_size, ksize);
 
-        while let Some(record) = reader.next() {
-            let record = record.expect("invalid record");
-            let normseq = record.normalize(false);
-
-            match self.consume_bytes(&normseq.into_owned(), skip_bad_kmers) {
-                Ok(n_kmers) => n = n + n_kmers,
-                Err(msg) => return Err(PyValueError::new_err("oops")),
-            }
+        // For short sequences that fit in a single chunk, delegate to consume.
+        if seq_len <= chunk_size {
+            return self.consume(seq, skip_bad_kmers);
         }
-        Ok(n)
+
+        // Build a list of (start, end) byte-index pairs for each chunk.
+        // Adjacent chunks overlap by (ksize - 1) bases so that every k-mer
+        // crossing a chunk boundary appears in exactly one chunk.
+        let mut coord_pairs: Vec<(usize, usize)> = Vec::new();
+        let mut start = 0;
+        while start < seq_len {
+            let end = (start + chunk_size + ksize - 1).min(seq_len);
+            coord_pairs.push((start, end));
+            if end == seq_len {
+                break;
+            }
+            start += chunk_size;
+        }
+
+        // Process chunks in parallel: each chunk produces a local KmerCountTable.
+        let chunk_results: Vec<PyResult<(KmerCountTable, u64)>> = coord_pairs
+            .into_par_iter()
+            .map(|(start, end)| {
+                let mut t = KmerCountTable::new(self.ksize, self.store_kmers);
+                let n = t.consume(&seq[start..end], skip_bad_kmers)?;
+                Ok((t, n))
+            })
+            .collect();
+
+        // Merge the per-chunk tables into self and accumulate the k-mer count.
+        let mut total_n: u64 = 0;
+        for result in chunk_results {
+            let (t, n) = result?;
+            self._merge(t);
+            total_n += n;
+        }
+
+        // Record the total bases processed (full sequence, counted once).
+        self.consumed += seq_len as u64;
+
+        Ok(total_n)
     }
 
     // Helper method to get hash set of k-mers
@@ -539,58 +825,22 @@ impl KmerCountTable {
         Ok(())
     }
 
+    #[pyo3(signature = (seq, skip_bad_kmers=true))]
     pub fn kmers_and_hashes(
         &self,
-        seq: String,
+        seq: &str,
         skip_bad_kmers: bool,
     ) -> PyResult<Vec<(String, u64)>> {
-        // TODO: optimize RC calculation
-        // TODO: confirm that there are no more hashes left? unreachable?
-        let seq = seq.to_ascii_uppercase();
-        let seqb = seq.as_bytes();
-
-        let mut hasher = SeqToHashes::new(
-            seqb,
-            self.ksize.into(),
-            skip_bad_kmers,
-            false,
-            HashFunctions::Murmur64Dna,
-            42,
-        );
-
-        let ksize = self.ksize as usize;
-        let end: usize = seq.len() - ksize + 1;
-
         let mut v: Vec<(String, u64)> = vec![];
-        for start in 0..end {
-            let substr = &seq[start..start + ksize];
-            // CTB: this calculates RC each time, instead of doing so
-            // using a sliding window. It's easy and works, so I'm
-            // starting here :).
-            let substr_b_rc = revcomp(&seqb[start..start + ksize]);
-            let substr_rc =
-                std::str::from_utf8(&substr_b_rc).expect("invalid utf-8 sequence for rev comp");
-            let hashval = hasher.next().expect("should not run out of hashes");
 
-            // Three options:
-            // * good kmer, all is well, store canonical k-mer and hashval;
-            // * bad k-mer allowed by skip_bad_kmers, and signaled by
-            //   hashval == 0): return empty string & 0;
-            // * bad k-mer not allowed, raise error
-            if let Ok(hashval) = hashval {
-                if hashval > 0 {
-                    let canonical_kmer = if substr < substr_rc {
-                        substr
-                    } else {
-                        substr_rc
-                    };
-                    v.push((canonical_kmer.to_string(), hashval));
-                } else {
-                    v.push(("".to_owned(), 0));
-                }
-            } else {
-                let msg = format!("bad k-mer at position {}: {}", start, substr);
-                return Err(PyValueError::new_err(msg));
+        // Create the iterator
+        let iter = KmersAndHashesIter::new(seq, self.ksize as usize, skip_bad_kmers);
+
+        // Collect the k-mers and their hashes
+        for result in iter {
+            match result {
+                Ok((kmer, hash)) => v.push((kmer, hash)),
+                Err(e) => return Err(e),
             }
         }
 
@@ -658,6 +908,100 @@ impl KmerCountTable {
         // Calculate and return cosine similarity.
         dot_product as f64 / (magnitude_self * magnitude_other)
     }
+
+    /// Add counts from another KmerCountTable to this one.
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The KmerCountTable to add from
+    ///
+    /// # Returns
+    ///
+    /// Returns a PyResult with a tuple containing:
+    /// * The number of k-mer counts added
+    /// * The number of new keys added
+    #[pyo3(signature = (other))]
+    pub fn add(&mut self, other: &KmerCountTable) -> PyResult<(u64, u64)> {
+        if self.ksize != other.ksize {
+            return Err(PyValueError::new_err(
+                "KmerCountTables must have the same ksize",
+            ));
+        }
+
+        let total_counts_added = AtomicU64::new(0);
+        let new_keys_added = AtomicU64::new(0);
+        let counts_mutex = Mutex::new(&mut self.counts);
+
+        // Use thread-local storage to collect updates
+        let updates: Vec<_> = other
+            .counts
+            .par_iter()
+            .map(|(&hash, &count)| (hash, count))
+            .collect();
+
+        // Apply updates in parallel
+        updates.par_iter().for_each(|(hash, count)| {
+            let mut counts_lock = counts_mutex.lock().unwrap();
+            let current_count = counts_lock.entry(*hash).or_insert(0);
+            if *current_count == 0 {
+                new_keys_added.fetch_add(1, Ordering::Relaxed);
+            }
+            *current_count += count;
+            total_counts_added.fetch_add(*count, Ordering::Relaxed);
+        });
+
+        self.consumed += other.consumed;
+
+        if self.store_kmers {
+            if other.store_kmers {
+                let hash_to_kmer_mutex = Mutex::new(self.hash_to_kmer.as_mut().unwrap());
+
+                other
+                    .hash_to_kmer
+                    .as_ref()
+                    .unwrap()
+                    .par_iter()
+                    .for_each(|(&hash, kmer)| {
+                        let mut hash_to_kmer_lock = hash_to_kmer_mutex.lock().unwrap();
+                        hash_to_kmer_lock
+                            .entry(hash)
+                            .or_insert_with(|| kmer.clone());
+                    });
+            } else {
+                eprintln!("Warning: Incoming table does not store k-mers, but target table does. K-mer information for new hashes will be missing.");
+            }
+        }
+
+        let total_added = total_counts_added.load(Ordering::Relaxed);
+        let new_keys = new_keys_added.load(Ordering::Relaxed);
+
+        println!("Added {} k-mer counts to the table", total_added);
+        println!("Added {} new keys to the table", new_keys);
+
+        Ok((total_added, new_keys))
+    }
+}
+
+// Private (non-Python-visible) methods
+impl KmerCountTable {
+    /// Merge `other` into `self` by summing counts for shared hashes and
+    /// inserting new hashes.  `consumed` is intentionally **not** propagated
+    /// because callers that split sequences into chunks track `consumed`
+    /// at the top level.
+    fn _merge(&mut self, other: KmerCountTable) {
+        for (hashval, count) in other.counts {
+            *self.counts.entry(hashval).or_insert(0) += count;
+        }
+
+        if self.store_kmers {
+            if let Some(other_map) = other.hash_to_kmer {
+                let my_map = self.hash_to_kmer.as_mut().unwrap();
+                for (hash, kmer) in other_map {
+                    my_map.entry(hash).or_insert(kmer);
+                }
+            }
+        }
+    }
 }
 
 #[pyclass]
@@ -670,6 +1014,105 @@ pub struct KmerCountTableIterator {
 impl KmerCountTableIterator {
     pub fn __next__(mut slf: PyRefMut<Self>) -> Option<(u64, u64)> {
         slf.inner.next()
+    }
+}
+
+pub struct KmersAndHashesIter {
+    seq: String,          // The sequence to iterate over
+    seq_rc: String,       // reverse complement sequence
+    ksize: usize,         // K-mer size
+    pos: usize,           // Current position in the sequence
+    end: usize,           // The end position for k-mer extraction
+    hasher: SeqToHashes,  // Iterator for generating hashes
+    skip_bad_kmers: bool, // Flag to skip bad k-mers
+}
+
+impl KmersAndHashesIter {
+    pub fn new(seq: &str, ksize: usize, skip_bad_kmers: bool) -> Self {
+        let seq = seq.to_ascii_uppercase(); // Ensure uppercase for uniformity
+        let seqb = seq.as_bytes().to_vec(); // Convert to bytes for hashing
+        let seqb_rc = revcomp(&seqb);
+        let seq_rc = std::str::from_utf8(&seqb_rc)
+            .expect("invalid utf-8 sequence for rev comp")
+            .to_string();
+
+        let end = seq.len() - ksize + 1; // Calculate the endpoint for k-mer extraction
+        let hasher = SeqToHashes::new(
+            &seqb,
+            ksize,
+            true,  // Set force to true, bad kmers will emit hash=0 instead of killing process
+            false, // Other flags, e.g., reverse complement
+            HashFunctions::Murmur64Dna,
+            42, // Seed for hashing
+        )
+        .expect("Failed to create SeqToHashes");
+
+        Self {
+            seq,
+            seq_rc,
+            ksize,
+            pos: 0, // Start at the beginning of the sequence
+            end,
+            hasher,
+            skip_bad_kmers,
+        }
+    }
+}
+
+impl Iterator for KmersAndHashesIter {
+    type Item = PyResult<(String, u64)>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // Check if we've reached the end of the sequence
+        if self.pos >= self.end {
+            return None;
+        }
+
+        let start = self.pos;
+        let ksize = self.ksize;
+        let rpos = self.end - start - 1;
+
+        // Extract the current k-mer and its reverse complement
+        let substr = &self.seq[start..start + ksize];
+        let substr_rc = &self.seq_rc[rpos..rpos + ksize];
+
+        // Get the next hash value from the hasher
+        let hashval = self.hasher.next().expect("should not run out of hashes");
+
+        // Increment position for the next k-mer
+        self.pos += 1;
+
+        // Handle hash value logic
+        if let Ok(hashval) = hashval {
+            // Good kmer, all is well, store canonical k-mer and hashval;
+            if hashval > 0 {
+                // Select the canonical k-mer (lexicographically smaller between forward and reverse complement)
+                let canonical_kmer = if substr < substr_rc {
+                    substr
+                } else {
+                    substr_rc
+                };
+                // If valid hash, return (canonical_kmer,hashval) tuple
+                Some(Ok((canonical_kmer.to_string(), hashval)))
+            } else {
+                // If the hash is 0, handle based on `skip_bad_kmers`
+                // Prepare msg identifying bad kmer
+                let msg = format!("bad k-mer at position {}: {}", start + 1, substr);
+                if self.skip_bad_kmers {
+                    // Print a message and skip adding the bad k-mer to the result
+                    eprintln!("{}", msg);
+                    self.next() // Recursively call `next()` to skip this k-mer
+                } else {
+                    // If skip_bad_kmer is false, return an empty string and 0, but still print a message
+                    eprintln!("{}", msg);
+                    Some(Ok(("".to_string(), 0)))
+                }
+            }
+        } else {
+            // If error raised by SeqToHashes
+            let msg = format!("bad k-mer at position {}: {}", start + 1, substr);
+            Some(Err(PyValueError::new_err(msg)))
+        }
     }
 }
 

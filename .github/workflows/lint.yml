@@ -13,12 +13,12 @@ jobs:
   rust_on_linux:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
       with:
         fetch-depth: 0
 
     - name: cache conda
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       env:
         CACHE_NUMBER: 1
       with:
@@ -30,16 +30,16 @@ jobs:
       uses: Swatinem/rust-cache@v2
 
     - name: setup conda
-      uses: conda-incubator/setup-miniconda@v3
+      uses: conda-incubator/setup-miniconda@v4
       with:
         auto-update-conda: true
         python-version: 3.12
         channels: conda-forge,bioconda
-        miniforge-variant: Mambaforge
+        miniforge-variant: Miniforge3
         miniforge-version: latest
-        use-mamba: true
+        use-mamba: true # Prioritise mamba over conda if available
         mamba-version: "*"
-        activate-environment: sourmash_dev
+        activate-environment: sourmash_dev # Unclear if this env is created or not
         auto-activate-base: false
 #        use-only-tar-bz2: true
 

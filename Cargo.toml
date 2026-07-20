@@ -6,19 +6,31 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
 name = "oxli"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
+bench = false
+
+[[bench]]
+name = "genome"
+harness = false
 
 [dependencies]
-anyhow = "1.0.89"
-env_logger = "0.11.5"
-log = "0.4.22"
+anyhow = "1.0.102"
+env_logger = "0.11.10"
+log = "0.4.30"
 needletail = "0.5.1"
-# Disable niffler's `lzma` feature: it links the native `lzma` library via
-# liblzma-sys, which conflicts with needletail's own lzma binding (xz2 -> lzma-sys).
-# Table save/load only uses gzip, so gz/bz2 backends are sufficient here.
-niffler = { version = "2.6.0", default-features = false, features = ["gz", "bz2"] }
-pyo3 = { version="0.22.3", features = ["extension-module", "anyhow"] }
-rayon = "1.10.0"
-serde = { version = "1.0.210", features = ["derive"] }
-serde_json = "1.0.128"
-sourmash = "0.15.1"
+# Restrict niffler to the gzip backend. Its default `lzma` feature links the
+# native `lzma` library via liblzma-sys, which conflicts with needletail's own
+# lzma binding (xz2 -> lzma-sys). Table save/load only uses gzip, so gz alone is
+# sufficient (sourmash separately pulls in niffler's gz + zstd backends).
+niffler = { version = "3.0.1", default-features = false, features = ["gz"] }
+pyo3 = { version="0.29.0", features = ["anyhow"] }
+rayon = "1.12.0"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+sourmash = "0.23.0"
+
+[dev-dependencies]
+criterion = "0.8"
+
+[features]
+extension-module = ["pyo3/extension-module"]
