@@ -11,8 +11,8 @@ synthetic sequences so their measured work is stable across runs.
 """
 
 import gzip
-import random
 from pathlib import Path
+import random
 
 import pytest
 

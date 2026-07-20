@@ -1,5 +1,6 @@
-import oxli
 from test_basic import create_sample_kmer_table
+
+import oxli
 
 
 # Test __len__
