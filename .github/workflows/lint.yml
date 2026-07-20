@@ -35,7 +35,7 @@ jobs:
           use-mamba: true # Prioritise mamba over conda if available
           mamba-version: "*"
           activate-environment: sourmash_dev # Unclear if this env is created or not
-          auto-activate-base: false
+          auto-activate: false
       - run: conda info
         #        use-only-tar-bz2: true
       - run: conda list
