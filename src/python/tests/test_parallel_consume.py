@@ -1,6 +1,7 @@
 import collections
-import pytest
 import random
+
+import pytest
 
 import oxli
 

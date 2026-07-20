@@ -1,10 +1,9 @@
 from pathlib import Path
 
+from test_basic import create_sample_kmer_table
 import toml
 
 import oxli
-from test_basic import create_sample_kmer_table
-
 
 # Test attributes
 

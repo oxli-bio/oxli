@@ -2,9 +2,9 @@ import gzip
 import json
 
 import pytest
+from test_attr import get_version_from_cargo_toml
 
 from oxli import KmerCountTable
-from test_attr import get_version_from_cargo_toml
 
 CURRENT_VERSION = get_version_from_cargo_toml()
 
