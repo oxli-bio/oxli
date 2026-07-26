@@ -4,6 +4,9 @@ channels:
   - bioconda
 dependencies:
   - python 3.14
+  # Select the free-threaded (no-GIL) CPython 3.14 build. On conda-forge this
+  # metapackage constrains `python` to its free-threaded (`*_cp314t`) variant.
+  - python-freethreading
   - compilers
   - maturin>=1,<2
   - pytest
