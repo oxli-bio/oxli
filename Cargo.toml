@@ -42,6 +42,11 @@ criterion = { version = "5.0.1", package = "codspeed-criterion-compat" }
 # is only pulled for the bench build, never for the maturin extension build.
 pyo3 = { version = "0.29.0", features = ["auto-initialize"] }
 
+[lints.rust]
+# `Py_GIL_DISABLED` is a cfg set by pyo3's build script on free-threaded
+# CPython builds; declare it so it is not flagged as an unexpected cfg.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(Py_GIL_DISABLED)'] }
+
 [features]
 extension-module = ["pyo3/extension-module"]
 # Opt-in stable-ABI (abi3) build. Enabled by CI for the GIL builds so a single

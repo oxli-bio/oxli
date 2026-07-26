@@ -1285,18 +1285,34 @@ impl Iterator for KmersAndHashesIter {
     }
 }
 
-// Python module definition.
-//
-// `gil_used = false` marks the module as safe to import into a free-threaded
-// (no-GIL) CPython build without re-enabling the GIL. This is sound because all
-// mutable state lives on `#[pyclass]` instances, whose method borrows PyO3
-// already serializes per object; the module itself holds no shared mutable
-// state.
-#[pymodule(gil_used = false)]
-fn oxli(m: &Bound<'_, PyModule>) -> PyResult<()> {
+/// Shared module setup for both the GIL and free-threaded module entry points.
+fn register_oxli(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // `try_init` (unlike `init`) does not panic if a logger is already set,
     // which can happen when the extension is imported more than once.
     let _ = env_logger::try_init();
     m.add_class::<KmerCountTable>()?;
     Ok(())
+}
+
+// Free-threaded (no-GIL) build: declare the module safe to import without
+// re-enabling the GIL. This is sound because all mutable state lives on
+// `#[pyclass]` instances, whose method borrows PyO3 serializes per object; the
+// module holds no shared mutable state.
+//
+// The `gil_used = false` option emits a `Py_mod_gil` module slot, which is not
+// available under the abi3 (limited API) floor the GIL wheels are built against
+// — so it is applied only here, to the free-threaded build (`Py_GIL_DISABLED`),
+// which is never an abi3 build. Applying it unconditionally makes the abi3 wheel
+// segfault on import.
+#[cfg(Py_GIL_DISABLED)]
+#[pymodule(gil_used = false)]
+fn oxli(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    register_oxli(m)
+}
+
+// Standard (GIL) build, including abi3 wheels.
+#[cfg(not(Py_GIL_DISABLED))]
+#[pymodule]
+fn oxli(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    register_oxli(m)
 }

@@ -44,7 +44,10 @@ jobs:
           # abi3: one stable-ABI wheel per platform serves CPython 3.10+
           # (built against the 3.12 headers here). Free-threaded wheels are
           # produced by the separate *-freethreaded jobs below.
-          args: --release --out dist --interpreter python3.12 --features abi3
+          # NOTE: `pyo3/extension-module` must be listed explicitly — passing
+          # `--features` on the CLI overrides maturin's configured features, and
+          # without it the wheel links libpython and segfaults on import.
+          args: --release --out dist --interpreter python3.12 --features abi3,pyo3/extension-module
           sccache: 'true'
           manylinux: auto
       - name: Upload wheels
@@ -80,7 +83,10 @@ jobs:
           # abi3: one stable-ABI wheel per platform serves CPython 3.10+
           # (built against the 3.12 headers here). Free-threaded wheels are
           # produced by the separate *-freethreaded jobs below.
-          args: --release --out dist --interpreter python3.12 --features abi3
+          # NOTE: `pyo3/extension-module` must be listed explicitly — passing
+          # `--features` on the CLI overrides maturin's configured features, and
+          # without it the wheel links libpython and segfaults on import.
+          args: --release --out dist --interpreter python3.12 --features abi3,pyo3/extension-module
           sccache: 'true'
           manylinux: musllinux_1_2
       - name: Upload wheels
@@ -110,7 +116,10 @@ jobs:
           # abi3: one stable-ABI wheel per platform serves CPython 3.10+
           # (built against the 3.12 headers here). Free-threaded wheels are
           # produced by the separate *-freethreaded jobs below.
-          args: --release --out dist --interpreter python3.12 --features abi3
+          # NOTE: `pyo3/extension-module` must be listed explicitly — passing
+          # `--features` on the CLI overrides maturin's configured features, and
+          # without it the wheel links libpython and segfaults on import.
+          args: --release --out dist --interpreter python3.12 --features abi3,pyo3/extension-module
           sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v7
@@ -138,7 +147,10 @@ jobs:
           # abi3: one stable-ABI wheel per platform serves CPython 3.10+
           # (built against the 3.12 headers here). Free-threaded wheels are
           # produced by the separate *-freethreaded jobs below.
-          args: --release --out dist --interpreter python3.12 --features abi3
+          # NOTE: `pyo3/extension-module` must be listed explicitly — passing
+          # `--features` on the CLI overrides maturin's configured features, and
+          # without it the wheel links libpython and segfaults on import.
+          args: --release --out dist --interpreter python3.12 --features abi3,pyo3/extension-module
           sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v7
