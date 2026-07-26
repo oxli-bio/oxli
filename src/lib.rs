@@ -145,6 +145,8 @@ impl<'de> Deserialize<'de> for PackedKmer {
 /// Basic KmerCountTable struct, mapping hashes to counts.
 pub struct KmerCountTable {
     counts: IntMap<u64>,
+    /// K-mer size the table counts; exposed to Python as a read-only attribute.
+    #[pyo3(get)]
     pub ksize: u8,
     version: String,
     consumed: u64,

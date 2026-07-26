@@ -25,6 +25,13 @@ def test_hashes_attribute():
     )
 
 
+def test_ksize_attribute():
+    """The ``ksize`` the table was created with is exposed as a read-only int."""
+    table = oxli.KmerCountTable(ksize=21)
+    assert table.ksize == 21
+    assert isinstance(table.ksize, int)
+
+
 def get_version_from_cargo_toml():
     # Path to Cargo.toml relative to the location of the test file
     cargo_toml_path = Path(__file__).resolve().parents[3] / 'Cargo.toml'
