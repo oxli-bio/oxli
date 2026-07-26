@@ -426,12 +426,12 @@ impl KmerCountTable {
         file.read_to_end(&mut raw)?;
 
         let loaded_table: KmerCountTable = if raw.starts_with(SAVE_MAGIC) {
-            // New format: gzipped bincode after the magic.
-            let (mut reader, _format) =
+            // New format: gzipped bincode after the magic. Stream the
+            // decompressed bytes straight into bincode (buffered) so the whole
+            // uncompressed payload is never materialized in memory at once.
+            let (reader, _format) =
                 niffler::get_reader(Box::new(Cursor::new(&raw[SAVE_MAGIC.len()..])))?;
-            let mut buf = Vec::new();
-            reader.read_to_end(&mut buf)?;
-            bincode::deserialize(&buf)
+            bincode::deserialize_from(std::io::BufReader::new(reader))
                 .map_err(|e| anyhow::anyhow!("Deserialization error: {}", e))?
         } else {
             // Legacy format: niffler auto-detects gzip/plain, then parse JSON.
