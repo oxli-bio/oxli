@@ -27,6 +27,7 @@
 /// parallelism but lower overhead.
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use oxli::KmerCountTable;
+use pyo3::Python;
 use std::fs::File;
 use std::hint::black_box;
 use std::io::{BufRead, BufReader};
@@ -72,36 +73,40 @@ fn load_genome_sequence() -> String {
 fn bench_consume(c: &mut Criterion) {
     let sequence = load_genome_sequence();
 
-    let mut group = c.benchmark_group("consume");
-    for ksize in [21u8, 31] {
-        group.bench_with_input(BenchmarkId::new("akkermansia", ksize), &ksize, |b, &k| {
-            b.iter(|| {
-                let mut table = KmerCountTable::new(k, false);
-                table
-                    .consume(black_box(&sequence), true)
-                    .expect("consume failed");
+    Python::attach(|py| {
+        let mut group = c.benchmark_group("consume");
+        for ksize in [21u8, 31] {
+            group.bench_with_input(BenchmarkId::new("akkermansia", ksize), &ksize, |b, &k| {
+                b.iter(|| {
+                    let mut table = KmerCountTable::new(k, false);
+                    table
+                        .consume(py, black_box(&sequence), true)
+                        .expect("consume failed");
+                });
             });
-        });
-    }
-    group.finish();
+        }
+        group.finish();
+    });
 }
 
 /// Benchmark `KmerCountTable::parallel_consume` with the default chunk size.
 fn bench_parallel_consume(c: &mut Criterion) {
     let sequence = load_genome_sequence();
 
-    let mut group = c.benchmark_group("parallel_consume");
-    for ksize in [21u8, 31] {
-        group.bench_with_input(BenchmarkId::new("akkermansia", ksize), &ksize, |b, &k| {
-            b.iter(|| {
-                let mut table = KmerCountTable::new(k, false);
-                table
-                    .parallel_consume(black_box(&sequence), 50_000, true)
-                    .expect("parallel_consume failed");
+    Python::attach(|py| {
+        let mut group = c.benchmark_group("parallel_consume");
+        for ksize in [21u8, 31] {
+            group.bench_with_input(BenchmarkId::new("akkermansia", ksize), &ksize, |b, &k| {
+                b.iter(|| {
+                    let mut table = KmerCountTable::new(k, false);
+                    table
+                        .parallel_consume(py, black_box(&sequence), 50_000, true)
+                        .expect("parallel_consume failed");
+                });
             });
-        });
-    }
-    group.finish();
+        }
+        group.finish();
+    });
 }
 
 /// Benchmark `parallel_consume` across different chunk sizes to find the sweet
@@ -109,22 +114,24 @@ fn bench_parallel_consume(c: &mut Criterion) {
 fn bench_parallel_consume_chunk_sizes(c: &mut Criterion) {
     let sequence = load_genome_sequence();
 
-    let mut group = c.benchmark_group("parallel_consume_chunk_sizes");
-    for chunk_size in [10_000usize, 50_000, 200_000] {
-        group.bench_with_input(
-            BenchmarkId::new("akkermansia_k21", chunk_size),
-            &chunk_size,
-            |b, &cs| {
-                b.iter(|| {
-                    let mut table = KmerCountTable::new(21, false);
-                    table
-                        .parallel_consume(black_box(&sequence), cs, true)
-                        .expect("parallel_consume failed");
-                });
-            },
-        );
-    }
-    group.finish();
+    Python::attach(|py| {
+        let mut group = c.benchmark_group("parallel_consume_chunk_sizes");
+        for chunk_size in [10_000usize, 50_000, 200_000] {
+            group.bench_with_input(
+                BenchmarkId::new("akkermansia_k21", chunk_size),
+                &chunk_size,
+                |b, &cs| {
+                    b.iter(|| {
+                        let mut table = KmerCountTable::new(21, false);
+                        table
+                            .parallel_consume(py, black_box(&sequence), cs, true)
+                            .expect("parallel_consume failed");
+                    });
+                },
+            );
+        }
+        group.finish();
+    });
 }
 
 /// Benchmark `KmerCountTable::kmers_and_hashes` over the whole genome fragment.
@@ -138,15 +145,17 @@ fn bench_kmers_and_hashes(c: &mut Criterion) {
     // kmers_and_hashes only depends on `ksize`, so an empty table is sufficient.
     let table = KmerCountTable::new(21, false);
 
-    let mut group = c.benchmark_group("kmers_and_hashes");
-    group.bench_function("akkermansia_k21", |b| {
-        b.iter(|| {
-            table
-                .kmers_and_hashes(black_box(&sequence), true)
-                .expect("kmers_and_hashes failed")
+    Python::attach(|py| {
+        let mut group = c.benchmark_group("kmers_and_hashes");
+        group.bench_function("akkermansia_k21", |b| {
+            b.iter(|| {
+                table
+                    .kmers_and_hashes(py, black_box(&sequence), true)
+                    .expect("kmers_and_hashes failed")
+            });
         });
+        group.finish();
     });
-    group.finish();
 }
 
 /// Benchmark `KmerCountTable::cosine`, the Rayon-parallel dot product plus
@@ -154,23 +163,25 @@ fn bench_kmers_and_hashes(c: &mut Criterion) {
 fn bench_cosine(c: &mut Criterion) {
     let sequence = load_genome_sequence();
 
-    // cosine is read-only, so both tables are built once outside the loop.
-    let mut a = KmerCountTable::new(21, false);
-    a.consume(&sequence, true).expect("consume failed");
+    Python::attach(|py| {
+        // cosine is read-only, so both tables are built once outside the loop.
+        let mut a = KmerCountTable::new(21, false);
+        a.consume(py, &sequence, true).expect("consume failed");
 
-    // A partially-overlapping second table (first half of the sequence) so the
-    // similarity is non-trivial rather than a perfect 1.0.
-    let mut b_table = KmerCountTable::new(21, false);
-    let half = sequence.len() / 2;
-    b_table
-        .consume(&sequence[..half], true)
-        .expect("consume failed");
+        // A partially-overlapping second table (first half of the sequence) so
+        // the similarity is non-trivial rather than a perfect 1.0.
+        let mut b_table = KmerCountTable::new(21, false);
+        let half = sequence.len() / 2;
+        b_table
+            .consume(py, &sequence[..half], true)
+            .expect("consume failed");
 
-    let mut group = c.benchmark_group("cosine");
-    group.bench_function("akkermansia_k21", |bch| {
-        bch.iter(|| a.cosine(black_box(&b_table)));
+        let mut group = c.benchmark_group("cosine");
+        group.bench_function("akkermansia_k21", |bch| {
+            bch.iter(|| a.cosine(py, black_box(&b_table)));
+        });
+        group.finish();
     });
-    group.finish();
 }
 
 /// Benchmark `KmerCountTable::add`, the serial merge of another table's counts.
@@ -181,17 +192,19 @@ fn bench_cosine(c: &mut Criterion) {
 fn bench_add(c: &mut Criterion) {
     let sequence = load_genome_sequence();
 
-    let mut other = KmerCountTable::new(21, false);
-    other.consume(&sequence, true).expect("consume failed");
+    Python::attach(|py| {
+        let mut other = KmerCountTable::new(21, false);
+        other.consume(py, &sequence, true).expect("consume failed");
 
-    let mut group = c.benchmark_group("add");
-    group.bench_function("akkermansia_k21", |b| {
-        b.iter(|| {
-            let mut table = KmerCountTable::new(21, false);
-            table.add(black_box(&other)).expect("add failed");
+        let mut group = c.benchmark_group("add");
+        group.bench_function("akkermansia_k21", |b| {
+            b.iter(|| {
+                let mut table = KmerCountTable::new(21, false);
+                table.add(black_box(&other)).expect("add failed");
+            });
         });
+        group.finish();
     });
-    group.finish();
 }
 
 // ── criterion entry points ────────────────────────────────────────────────────

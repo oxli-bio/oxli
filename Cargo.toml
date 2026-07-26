@@ -23,6 +23,10 @@ needletail = "0.7.3"
 # lzma binding (xz2 -> lzma-sys). Table save/load only uses gzip, so gz alone is
 # sufficient (sourmash separately pulls in niffler's gz + zstd backends).
 niffler = { version = "3.0.1", default-features = false, features = ["gz"] }
+# Identity hasher for the count maps: the keys are already well-distributed
+# 64-bit MurmurHash values, so re-hashing them (as the default SipHash does)
+# is pure overhead. `nohash-hasher` uses the key directly as the bucket index.
+nohash-hasher = "0.2.0"
 pyo3 = { version = "0.29.0", features = ["anyhow"] }
 rayon = "1.12.0"
 serde = { version = "1.0.228", features = ["derive"] }
@@ -31,6 +35,11 @@ sourmash = "0.23.0"
 
 [dev-dependencies]
 criterion = { version = "5.0.1", package = "codspeed-criterion-compat" }
+# The benchmarks call the `#[pymethods]` API directly, which takes a `Python`
+# token (methods release the GIL internally). `auto-initialize` lets the bench
+# binary start an embedded interpreter so `Python::with_gil` works; this feature
+# is only pulled for the bench build, never for the maturin extension build.
+pyo3 = { version = "0.29.0", features = ["auto-initialize"] }
 
 [features]
 extension-module = ["pyo3/extension-module"]
