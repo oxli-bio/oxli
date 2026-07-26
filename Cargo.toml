@@ -34,3 +34,8 @@ criterion = { version = "5.0.1", package = "codspeed-criterion-compat" }
 
 [features]
 extension-module = ["pyo3/extension-module"]
+# Opt-in stable-ABI (abi3) build. Enabled by CI for the GIL builds so a single
+# wheel serves CPython 3.10+; deliberately NOT a default feature because the
+# free-threaded ABI does not support abi3, and a default would break source
+# builds on free-threaded interpreters (`pip install` from sdist on 3.14t).
+abi3 = ["pyo3/abi3-py310"]

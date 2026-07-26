@@ -1116,10 +1116,18 @@ impl Iterator for KmersAndHashesIter {
     }
 }
 
-// Python module definition
-#[pymodule]
+// Python module definition.
+//
+// `gil_used = false` marks the module as safe to import into a free-threaded
+// (no-GIL) CPython build without re-enabling the GIL. This is sound because all
+// mutable state lives on `#[pyclass]` instances, whose method borrows PyO3
+// already serializes per object; the module itself holds no shared mutable
+// state.
+#[pymodule(gil_used = false)]
 fn oxli(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    env_logger::init();
+    // `try_init` (unlike `init`) does not panic if a logger is already set,
+    // which can happen when the extension is imported more than once.
+    let _ = env_logger::try_init();
     m.add_class::<KmerCountTable>()?;
     Ok(())
 }

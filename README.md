@@ -23,7 +23,7 @@ code for dealing with sequence data is well tested.
 ### Quick setup
 
 oxli is
-[available on conda-forge for Linux, Mac OS X, and Windows](https://github.com/conda-forge/oxli-feedstock) for Python versions 3.10, 3.11, and 3.12:
+[available on conda-forge for Linux, Mac OS X, and Windows](https://github.com/conda-forge/oxli-feedstock) for Python versions 3.10 through 3.14 (including the free-threaded 3.13t/3.14t builds):
 
 ```bash
 conda install oxli
