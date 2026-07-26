@@ -113,14 +113,29 @@ counts.consume_file('doc/example.fa')
 >>> 349910
 ```
 
+### Saving and loading
+
+Tables can be persisted to disk and reloaded:
+
+```python
+counts.save('counts.oxli')                 # gzip-compressed binary
+reloaded = KmerCountTable.load('counts.oxli')
+```
+
+`save` writes a compact gzip-compressed binary format. `load` auto-detects the
+format, so tables written by older oxli versions (gzip-JSON) still load. If you
+need a text representation, `serialize_json()` returns the table as a JSON
+string.
+
 
 ## Benchmarking
 
 oxli has two complementary benchmark suites:
 
 - **Rust / criterion** (`benches/genome.rs`) — micro-benchmarks the core
-  `consume` / `parallel_consume` hot paths against the *E. coli* genome (fetched
-  from NCBI on first run, skipped if offline):
+  `consume` / `parallel_consume` hot paths (and `kmers_and_hashes`, `cosine`,
+  `add`) against the *Akkermansia muciniphila* genome fragment bundled at
+  `doc/example.fa` (deterministic, no network access):
 
   ```bash
   make bench      # cargo bench
