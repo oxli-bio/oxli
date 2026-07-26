@@ -3,7 +3,7 @@ use std::cmp::max;
 use std::collections::hash_map::IntoIter;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
-use std::io::{BufReader, BufWriter, Write};
+use std::io::{BufWriter, Cursor, Read, Write};
 //use std::path::Path;
 
 // External crate imports
@@ -28,6 +28,12 @@ use needletail::{parse_fastx_file, Sequence};
 
 // Set version variable
 const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Magic prefix identifying oxli's binary (bincode) save format. The trailing
+/// byte is the on-disk format version. It is written *before* the gzip stream so
+/// `load` can distinguish a new binary file from a legacy gzip-JSON one (whose
+/// first bytes are the gzip magic `1f 8b`) or an uncompressed JSON file (`{`).
+const SAVE_MAGIC: &[u8] = b"OXLIBIN\x01";
 
 /// A `HashMap` keyed by 64-bit k-mer hashes using an identity hasher.
 ///
@@ -65,6 +71,75 @@ impl SeqError {
     }
 }
 
+/// A canonical k-mer stored 2 bits per base (`A=00, C=01, G=10, T=11`).
+///
+/// Replaces the previous `String` value in the `store_kmers` map: DNA needs only
+/// two bits per base, so this uses ~4x less heap than the UTF-8 string and skips
+/// per-window UTF-8 handling. `nbases` records the k-mer length so a partial
+/// final byte can be decoded unambiguously.
+///
+/// It (de)serializes transparently *as its decoded string*, so the on-disk JSON
+/// (`{hash: "ACGT..."}`) is byte-for-byte identical to older oxli versions and
+/// tables saved before this change still load.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PackedKmer {
+    nbases: u8,
+    bits: Box<[u8]>,
+}
+
+impl PackedKmer {
+    /// Pack an ASCII, upper-case `ACGT` k-mer. Non-ACGT bytes encode as `A`;
+    /// callers only ever pass validated canonical k-mers, so this is not hit in
+    /// practice.
+    fn encode(kmer: &[u8]) -> Self {
+        let nbases = kmer.len();
+        let mut bits = vec![0u8; nbases.div_ceil(4)].into_boxed_slice();
+        for (i, &base) in kmer.iter().enumerate() {
+            let code: u8 = match base {
+                b'C' => 1,
+                b'G' => 2,
+                b'T' => 3,
+                _ => 0, // A (and, defensively, anything unexpected)
+            };
+            bits[i / 4] |= code << ((i % 4) * 2);
+        }
+        PackedKmer {
+            nbases: nbases as u8,
+            bits,
+        }
+    }
+
+    /// Decode back to the upper-case `ACGT` string that was packed.
+    fn decode(&self) -> String {
+        const BASES: [u8; 4] = [b'A', b'C', b'G', b'T'];
+        let mut out = Vec::with_capacity(self.nbases as usize);
+        for i in 0..self.nbases as usize {
+            let code = (self.bits[i / 4] >> ((i % 4) * 2)) & 0b11;
+            out.push(BASES[code as usize]);
+        }
+        // Safe: every byte is one of A/C/G/T.
+        String::from_utf8(out).expect("packed k-mer decodes to valid ASCII")
+    }
+}
+
+impl Serialize for PackedKmer {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.decode())
+    }
+}
+
+impl<'de> Deserialize<'de> for PackedKmer {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> std::result::Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        Ok(PackedKmer::encode(s.as_bytes()))
+    }
+}
+
 #[pyclass]
 #[derive(Serialize, Deserialize, Debug)]
 /// Basic KmerCountTable struct, mapping hashes to counts.
@@ -74,7 +149,7 @@ pub struct KmerCountTable {
     version: String,
     consumed: u64,
     store_kmers: bool, // Store hash:kmer mapping if true
-    hash_to_kmer: Option<IntMap<String>>,
+    hash_to_kmer: Option<IntMap<PackedKmer>>,
 }
 
 #[pymethods]
@@ -123,7 +198,7 @@ impl KmerCountTable {
     pub fn unhash(&self, hash: u64) -> PyResult<String> {
         if self.store_kmers {
             if let Some(kmer) = self.hash_to_kmer.as_ref().unwrap().get(&hash) {
-                Ok(kmer.clone())
+                Ok(kmer.decode())
             } else {
                 // Raise KeyError if hash does not exist
                 let msg = format!("Warning: Hash {} not found in table.", hash);
@@ -192,13 +267,12 @@ impl KmerCountTable {
             self.consumed += kmer.len() as u64; // Add kmer len to total consumed bases
 
             if self.store_kmers {
-                // Get the canonical k-mer
+                // Get the canonical k-mer and store it 2-bit packed.
                 let canonical_kmer = self.canon(kmer)?;
-                // Optional: Store hash:kmer pair
                 self.hash_to_kmer
                     .as_mut()
                     .unwrap()
-                    .insert(hashval, canonical_kmer);
+                    .insert(hashval, PackedKmer::encode(canonical_kmer.as_bytes()));
             }
 
             Ok(count) // Return the current total count for the hash
@@ -310,44 +384,63 @@ impl KmerCountTable {
         serde_json::to_string(&self).map_err(|e| anyhow::anyhow!("Serialization error: {}", e))
     }
 
-    /// Save the KmerCountTable to a compressed file using Niffler.
+    /// Save the KmerCountTable to a gzip-compressed binary file.
+    ///
+    /// The format is `SAVE_MAGIC` followed by a gzipped `bincode` payload, which
+    /// is both smaller and faster to read/write than the previous gzip-JSON.
+    /// [`load`](Self::load) still reads tables written by older versions, but
+    /// files written here are not readable by them.
     pub fn save(&self, filepath: &str) -> PyResult<()> {
-        // Open the file for writing
-        let file = File::create(filepath).map_err(|e| PyIOError::new_err(e.to_string()))?;
+        // Serialize to the compact binary encoding first.
+        let payload = bincode::serialize(self)
+            .map_err(|e| PyValueError::new_err(format!("Serialization error: {}", e)))?;
 
-        // Create a Gzipped writer with niffler, using the default compression level
-        let writer = BufWriter::new(file);
-        let mut writer = get_writer(Box::new(writer), Format::Gzip, niffler::level::Level::One)
+        // Write the format magic straight to the file, then gzip the payload
+        // after it. (Writing the magic to the raw file first — rather than to a
+        // buffered writer that is then handed to niffler — guarantees it lands
+        // ahead of the gzip stream.)
+        let mut file = File::create(filepath).map_err(|e| PyIOError::new_err(e.to_string()))?;
+        file.write_all(SAVE_MAGIC)
             .map_err(|e| PyIOError::new_err(e.to_string()))?;
 
-        // Serialize the KmerCountTable to JSON
-        let json_data = self.serialize_json()?;
-
-        // Write the serialized JSON to the compressed file
-        writer
-            .write_all(json_data.as_bytes())
+        let mut gz = get_writer(Box::new(file), Format::Gzip, niffler::level::Level::One)
             .map_err(|e| PyIOError::new_err(e.to_string()))?;
+        gz.write_all(&payload)
+            .map_err(|e| PyIOError::new_err(e.to_string()))?;
+        gz.flush().map_err(|e| PyIOError::new_err(e.to_string()))?;
 
         Ok(())
     }
 
     #[staticmethod]
-    /// Load a KmerCountTable from a compressed file using Niffler.
+    /// Load a KmerCountTable saved with [`save`](Self::save).
+    ///
+    /// The format is auto-detected: files carrying `SAVE_MAGIC` are read as
+    /// gzipped bincode, while anything else falls back to the legacy path
+    /// (niffler-decompressed JSON), so gzip-JSON tables written by older oxli
+    /// versions still load.
     pub fn load(filepath: &str) -> Result<KmerCountTable> {
-        // Open the file for reading
-        let file = File::open(filepath)?;
+        // Read the whole file so we can sniff the format prefix.
+        let mut file = File::open(filepath)?;
+        let mut raw = Vec::new();
+        file.read_to_end(&mut raw)?;
 
-        // Use Niffler to get a reader that detects the compression format
-        let reader = BufReader::new(file);
-        let (mut reader, _format) = niffler::get_reader(Box::new(reader))?;
-
-        // Read the decompressed data into a string
-        let mut decompressed_data = String::new();
-        reader.read_to_string(&mut decompressed_data)?;
-
-        // Deserialize the JSON string to a KmerCountTable
-        let loaded_table: KmerCountTable = serde_json::from_str(&decompressed_data)
-            .map_err(|e| anyhow::anyhow!("Deserialization error: {}", e))?;
+        let loaded_table: KmerCountTable = if raw.starts_with(SAVE_MAGIC) {
+            // New format: gzipped bincode after the magic.
+            let (mut reader, _format) =
+                niffler::get_reader(Box::new(Cursor::new(&raw[SAVE_MAGIC.len()..])))?;
+            let mut buf = Vec::new();
+            reader.read_to_end(&mut buf)?;
+            bincode::deserialize(&buf)
+                .map_err(|e| anyhow::anyhow!("Deserialization error: {}", e))?
+        } else {
+            // Legacy format: niffler auto-detects gzip/plain, then parse JSON.
+            let (mut reader, _format) = niffler::get_reader(Box::new(Cursor::new(raw)))?;
+            let mut decompressed_data = String::new();
+            reader.read_to_string(&mut decompressed_data)?;
+            serde_json::from_str(&decompressed_data)
+                .map_err(|e| anyhow::anyhow!("Deserialization error: {}", e))?
+        };
 
         // Check version compatibility and issue a warning if necessary
         if loaded_table.version != VERSION {
@@ -446,27 +539,23 @@ impl KmerCountTable {
             ));
         }
 
-        // Collect canonical k-mers and their counts, skipping those not found in the counts table
-        let mut kmer_count_pairs: Vec<(&String, &u64)> = self
+        // Collect (decoded canonical k-mer, count) pairs, skipping hashes absent
+        // from the counts table. Decoding runs in parallel via Rayon.
+        let mut kmer_count_pairs: Vec<(String, u64)> = self
             .hash_to_kmer
             .as_ref()
             .unwrap()
-            .par_iter() // Use rayon for parallel iteration
-            .filter_map(|(&hash, kmer)| {
-                // Use filter_map to only include (kmer, count) pairs where the count exists
-                self.counts.get(&hash).map(|count| (kmer, count))
-            })
+            .par_iter()
+            .filter_map(|(&hash, kmer)| self.counts.get(&hash).map(|&count| (kmer.decode(), count)))
             .collect();
 
         // Handle sorting based on the flags
         if sortkeys {
             // Sort by canonical kmer lexicographically
-            kmer_count_pairs.par_sort_by_key(|&(kmer, _)| kmer.clone());
+            kmer_count_pairs.par_sort_by(|a, b| a.0.cmp(&b.0));
         } else if sortcounts {
             // Sort by count, secondary sort by kmer
-            kmer_count_pairs.par_sort_by(|&(kmer1, count1), &(kmer2, count2)| {
-                count1.cmp(count2).then_with(|| kmer1.cmp(kmer2))
-            });
+            kmer_count_pairs.par_sort_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
         }
         // If both sortcounts and sortkeys are false, no sorting is done.
 
@@ -476,21 +565,15 @@ impl KmerCountTable {
             let mut writer = BufWriter::new(f);
 
             // Write each kmer:count pair to the file
-            for (kmer, count) in kmer_count_pairs {
+            for (kmer, count) in &kmer_count_pairs {
                 writeln!(writer, "{}\t{}", kmer, count)?;
             }
 
             writer.flush()?; // Ensure all data is written to the file
             Ok(vec![]) // Return an empty vector when writing to a file
         } else {
-            // Convert the vector of references to owned values
-            let result: Vec<(String, u64)> = kmer_count_pairs
-                .into_par_iter() // Use rayon for parallel conversion
-                .map(|(kmer, &count)| (kmer.clone(), count))
-                .collect();
-
             // Return the vector of (kmer, count) tuples
-            Ok(result)
+            Ok(kmer_count_pairs)
         }
     }
 
@@ -976,8 +1059,10 @@ impl KmerCountTable {
                     my_map.entry(hash).or_insert_with(|| kmer.clone());
                 }
             } else {
-                log::warn!(
-                    "Incoming table does not store k-mers, but target table does. \
+                // Kept on stderr (not the logger) so it always surfaces, matching
+                // the historical behaviour the test-suite pins.
+                eprintln!(
+                    "Warning: Incoming table does not store k-mers, but target table does. \
                      K-mer information for new hashes will be missing."
                 );
             }
@@ -1035,7 +1120,10 @@ impl KmerCountTable {
             for result in iter {
                 let (kmer, hash) = result?;
                 if hash != 0 {
-                    self.hash_to_kmer.as_mut().unwrap().insert(hash, kmer);
+                    self.hash_to_kmer
+                        .as_mut()
+                        .unwrap()
+                        .insert(hash, PackedKmer::encode(kmer.as_bytes()));
                     *self.counts.entry(hash).or_insert(0) += 1;
                     n += 1;
                 }
@@ -1149,56 +1237,50 @@ impl Iterator for KmersAndHashesIter {
     type Item = Result<(String, u64), SeqError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // Check if we've reached the end of the sequence
-        if self.pos >= self.end {
-            return None;
-        }
-
-        let start = self.pos;
-        let ksize = self.ksize;
-        let rpos = self.end - start - 1;
-
-        // Extract the current k-mer and its reverse complement
-        let substr = &self.seq[start..start + ksize];
-        let substr_rc = &self.seq_rc[rpos..rpos + ksize];
-
-        // Get the next hash value from the hasher
-        let hashval = self.hasher.next().expect("should not run out of hashes");
-
-        // Increment position for the next k-mer
-        self.pos += 1;
-
-        // Handle hash value logic
-        if let Ok(hashval) = hashval {
-            // Good kmer, all is well, store canonical k-mer and hashval;
-            if hashval > 0 {
-                // Select the canonical k-mer (lexicographically smaller between forward and reverse complement)
-                let canonical_kmer = if substr < substr_rc {
-                    substr
-                } else {
-                    substr_rc
-                };
-                // If valid hash, return (canonical_kmer,hashval) tuple
-                Some(Ok((canonical_kmer.to_string(), hashval)))
-            } else {
-                // If the hash is 0, handle based on `skip_bad_kmers`
-                // Prepare msg identifying bad kmer
-                let msg = format!("bad k-mer at position {}: {}", start + 1, substr);
-                if self.skip_bad_kmers {
-                    // Print a message and skip adding the bad k-mer to the result
-                    eprintln!("{}", msg);
-                    self.next() // Recursively call `next()` to skip this k-mer
-                } else {
-                    // If skip_bad_kmer is false, return an empty string and 0, but still print a message
-                    eprintln!("{}", msg);
-                    Some(Ok(("".to_string(), 0)))
-                }
+        // Loop (rather than recurse) so a long run of bad k-mers — e.g. a
+        // stretch of `N`s — cannot overflow the stack when skipping.
+        loop {
+            // Stop once every window has been visited.
+            if self.pos >= self.end {
+                return None;
             }
-        } else {
-            // Error raised by SeqToHashes. With `force = true` (set in `new`)
-            // bad k-mers surface as hash 0 above rather than here, so this
-            // branch is effectively unreachable, but we map it faithfully.
-            Some(Err(SeqError::BadKmer(start as u64)))
+
+            let start = self.pos;
+            let ksize = self.ksize;
+            let rpos = self.end - start - 1;
+
+            // Extract the current k-mer and its reverse complement.
+            let substr = &self.seq[start..start + ksize];
+            let substr_rc = &self.seq_rc[rpos..rpos + ksize];
+
+            // Get the next hash value from the hasher, advancing position.
+            let hashval = self.hasher.next().expect("should not run out of hashes");
+            self.pos += 1;
+
+            match hashval {
+                // Good k-mer: return its canonical form (lexicographically
+                // smaller of the forward and reverse-complement windows).
+                Ok(h) if h > 0 => {
+                    let canonical_kmer = if substr < substr_rc {
+                        substr
+                    } else {
+                        substr_rc
+                    };
+                    return Some(Ok((canonical_kmer.to_string(), h)));
+                }
+                // Bad k-mer (hash 0): warn, then skip or emit a ("", 0) sentinel.
+                Ok(_) => {
+                    eprintln!("bad k-mer at position {}: {}", start + 1, substr);
+                    if self.skip_bad_kmers {
+                        continue; // advance to the next window
+                    }
+                    return Some(Ok((String::new(), 0)));
+                }
+                // Error raised by SeqToHashes. With `force = true` (set in `new`)
+                // bad k-mers surface as hash 0 above rather than here, so this
+                // branch is effectively unreachable, but we map it faithfully.
+                Err(_) => return Some(Err(SeqError::BadKmer(start as u64))),
+            }
         }
     }
 }
