@@ -31,6 +31,35 @@ conda install oxli
 
 This will install the oxli library for Python.
 
+Wheels are also published on [PyPI](https://pypi.org/project/oxli/):
+
+```bash
+pip install oxli
+```
+
+### Free-threaded (no-GIL) Python
+
+oxli ships dedicated wheels for the free-threaded CPython builds (`3.13t` /
+`3.14t`). Because oxli releases the GIL around its heavy Rust work, counting on
+separate `KmerCountTable` objects from multiple Python threads runs in parallel
+on a free-threaded interpreter.
+
+`pip` automatically selects the free-threaded wheel when you install from a
+free-threaded interpreter — there is nothing extra to specify:
+
+```bash
+# From a free-threaded interpreter (e.g. python3.14t)
+python3.14t -m pip install oxli
+```
+
+If you build from source instead, install into a free-threaded interpreter and
+let maturin target it (do **not** pass `--features abi3`, which the free-threaded
+ABI does not support):
+
+```bash
+python3.14t -m pip install oxli --no-binary oxli
+```
+
 ### For developers
 
 You can also try building oxli yourself and using it in [development mode](https://github.com/oxli-bio/oxli/wiki/For-Developers):
