@@ -158,10 +158,12 @@ jobs:
           name: wheels-macos-${{ matrix.platform.target }}
           path: dist
   # ── free-threaded (no-GIL) wheels ─────────────────────────────────────────
-  # The free-threaded ABI does not support abi3, so these are version-specific
-  # (cp313t/cp314t) and built without the `abi3` feature. Restricted to the
-  # mainstream native targets where free-threaded interpreters are readily
-  # available.
+  # The free-threaded ABI does not support abi3, so this is version-specific
+  # (cp314t) and built without the `abi3` feature. Restricted to the mainstream
+  # native targets where free-threaded interpreters are readily available.
+  # Only 3.14t is built: PyO3 0.29 (see Cargo.toml) dropped the experimental
+  # 3.13t free-threaded build, and officially supported free-threading starts at
+  # CPython 3.14 (PEP 779).
   linux-freethreaded:
     runs-on: ubuntu-latest
     strategy:
@@ -174,7 +176,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist --interpreter python3.13t python3.14t
+          args: --release --out dist --interpreter python3.14t
           sccache: 'true'
           manylinux: auto
       - name: Upload wheels
@@ -198,7 +200,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist --interpreter python3.13t python3.14t
+          args: --release --out dist --interpreter python3.14t
           sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v7
@@ -213,7 +215,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: x64
-          args: --release --out dist --interpreter python3.13t python3.14t
+          args: --release --out dist --interpreter python3.14t
           sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v7
