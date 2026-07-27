@@ -117,8 +117,10 @@ impl PackedKmer {
             let code = (self.bits[i / 4] >> ((i % 4) * 2)) & 0b11;
             out.push(BASES[code as usize]);
         }
-        // Safe: every byte is one of A/C/G/T.
-        String::from_utf8(out).expect("packed k-mer decodes to valid ASCII")
+        // SAFETY: every pushed byte comes from `BASES`, i.e. one of A/C/G/T,
+        // so `out` is always valid UTF-8. Skips the redundant validation scan
+        // that `String::from_utf8` would run on this hot decode path.
+        unsafe { String::from_utf8_unchecked(out) }
     }
 }
 
