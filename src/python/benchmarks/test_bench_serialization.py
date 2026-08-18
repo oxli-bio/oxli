@@ -9,8 +9,8 @@ def test_serialize_json(benchmark, populated_table):
 
 
 def test_save(benchmark, populated_table, tmp_path):
-    """save() the table to a gzip-compressed JSON file."""
-    out = str(tmp_path / 'bench_save.json')
+    """save() the table to a gzip-compressed binary (bincode) file."""
+    out = str(tmp_path / 'bench_save.oxli')
 
     def run():
         populated_table.save(out)
@@ -19,8 +19,8 @@ def test_save(benchmark, populated_table, tmp_path):
 
 
 def test_load(benchmark, populated_table, tmp_path):
-    """load() a table back from a saved gzip-compressed file."""
-    path = str(tmp_path / 'bench_load.json')
+    """load() a table back from a saved gzip-compressed binary file."""
+    path = str(tmp_path / 'bench_load.oxli')
     populated_table.save(path)
 
     def run():
