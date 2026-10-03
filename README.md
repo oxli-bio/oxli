@@ -23,13 +23,42 @@ code for dealing with sequence data is well tested.
 ### Quick setup
 
 oxli is
-[available on conda-forge for Linux, Mac OS X, and Windows](https://github.com/conda-forge/oxli-feedstock) for Python versions 3.10, 3.11, and 3.12:
+[available on conda-forge for Linux, Mac OS X, and Windows](https://github.com/conda-forge/oxli-feedstock) for Python versions 3.10 through 3.14 (including the free-threaded 3.13t/3.14t builds):
 
 ```bash
 conda install oxli
 ```
 
 This will install the oxli library for Python.
+
+Wheels are also published on [PyPI](https://pypi.org/project/oxli/):
+
+```bash
+pip install oxli
+```
+
+### Free-threaded (no-GIL) Python
+
+oxli ships dedicated wheels for the free-threaded CPython builds (`3.13t` /
+`3.14t`). Because oxli releases the GIL around its heavy Rust work, counting on
+separate `KmerCountTable` objects from multiple Python threads runs in parallel
+on a free-threaded interpreter.
+
+`pip` automatically selects the free-threaded wheel when you install from a
+free-threaded interpreter — there is nothing extra to specify:
+
+```bash
+# From a free-threaded interpreter (e.g. python3.14t)
+python3.14t -m pip install oxli
+```
+
+If you build from source instead, install into a free-threaded interpreter and
+let maturin target it (do **not** pass `--features abi3`, which the free-threaded
+ABI does not support):
+
+```bash
+python3.14t -m pip install oxli --no-binary oxli
+```
 
 ### For developers
 
@@ -113,14 +142,29 @@ counts.consume_file('doc/example.fa')
 >>> 349910
 ```
 
+### Saving and loading
+
+Tables can be persisted to disk and reloaded:
+
+```python
+counts.save('counts.oxli')                 # gzip-compressed binary
+reloaded = KmerCountTable.load('counts.oxli')
+```
+
+`save` writes a compact gzip-compressed binary format. `load` auto-detects the
+format, so tables written by older oxli versions (gzip-JSON) still load. If you
+need a text representation, `serialize_json()` returns the table as a JSON
+string.
+
 
 ## Benchmarking
 
 oxli has two complementary benchmark suites:
 
 - **Rust / criterion** (`benches/genome.rs`) — micro-benchmarks the core
-  `consume` / `parallel_consume` hot paths against the *E. coli* genome (fetched
-  from NCBI on first run, skipped if offline):
+  `consume` / `parallel_consume` hot paths (and `kmers_and_hashes`, `cosine`,
+  `add`) against the *Akkermansia muciniphila* genome fragment bundled at
+  `doc/example.fa` (deterministic, no network access):
 
   ```bash
   make bench      # cargo bench

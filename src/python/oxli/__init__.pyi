@@ -443,7 +443,13 @@ class KmerCountTable:
         ...
 
     def save(self, filepath: str) -> None:
-        """Save the table to a gzip-compressed JSON file.
+        """Save the table to a gzip-compressed binary file.
+
+        The format is a compact ``bincode`` payload (smaller and faster to read
+        and write than JSON). Files written here are not readable by oxli
+        versions predating the binary format, but :meth:`load` still reads the
+        older gzip-JSON files those versions produced. Use
+        :meth:`serialize_json` if a JSON representation is required.
 
         Parameters
         ----------
@@ -461,10 +467,14 @@ class KmerCountTable:
     def load(filepath: str) -> 'KmerCountTable':
         """Load a table previously written with :meth:`save`.
 
+        The on-disk format is auto-detected: files in the current binary format
+        are read as such, and gzip-JSON files written by older oxli versions are
+        still loaded.
+
         Parameters
         ----------
         filepath : str
-            Path to a saved table (compression auto-detected).
+            Path to a saved table (format and compression auto-detected).
 
         Returns
         -------

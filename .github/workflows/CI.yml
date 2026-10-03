@@ -41,7 +41,13 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist --interpreter python3.12
+          # abi3: one stable-ABI wheel per platform serves CPython 3.10+
+          # (built against the 3.12 headers here). Free-threaded wheels are
+          # produced by the separate *-freethreaded jobs below.
+          # NOTE: `pyo3/extension-module` must be listed explicitly — passing
+          # `--features` on the CLI overrides maturin's configured features, and
+          # without it the wheel links libpython and segfaults on import.
+          args: --release --out dist --interpreter python3.12 --features abi3,pyo3/extension-module
           sccache: 'true'
           manylinux: auto
       - name: Upload wheels
@@ -74,7 +80,13 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist --interpreter python3.12
+          # abi3: one stable-ABI wheel per platform serves CPython 3.10+
+          # (built against the 3.12 headers here). Free-threaded wheels are
+          # produced by the separate *-freethreaded jobs below.
+          # NOTE: `pyo3/extension-module` must be listed explicitly — passing
+          # `--features` on the CLI overrides maturin's configured features, and
+          # without it the wheel links libpython and segfaults on import.
+          args: --release --out dist --interpreter python3.12 --features abi3,pyo3/extension-module
           sccache: 'true'
           manylinux: musllinux_1_2
       - name: Upload wheels
@@ -101,7 +113,13 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist --interpreter python3.12
+          # abi3: one stable-ABI wheel per platform serves CPython 3.10+
+          # (built against the 3.12 headers here). Free-threaded wheels are
+          # produced by the separate *-freethreaded jobs below.
+          # NOTE: `pyo3/extension-module` must be listed explicitly — passing
+          # `--features` on the CLI overrides maturin's configured features, and
+          # without it the wheel links libpython and segfaults on import.
+          args: --release --out dist --interpreter python3.12 --features abi3,pyo3/extension-module
           sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v7
@@ -126,12 +144,83 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist --interpreter python3.12
+          # abi3: one stable-ABI wheel per platform serves CPython 3.10+
+          # (built against the 3.12 headers here). Free-threaded wheels are
+          # produced by the separate *-freethreaded jobs below.
+          # NOTE: `pyo3/extension-module` must be listed explicitly — passing
+          # `--features` on the CLI overrides maturin's configured features, and
+          # without it the wheel links libpython and segfaults on import.
+          args: --release --out dist --interpreter python3.12 --features abi3,pyo3/extension-module
           sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v7
         with:
           name: wheels-macos-${{ matrix.platform.target }}
+          path: dist
+  # ── free-threaded (no-GIL) wheels ─────────────────────────────────────────
+  # The free-threaded ABI does not support abi3, so this is version-specific
+  # (cp314t) and built without the `abi3` feature. Restricted to the mainstream
+  # native targets where free-threaded interpreters are readily available.
+  # Only 3.14t is built: PyO3 0.29 (see Cargo.toml) dropped the experimental
+  # 3.13t free-threaded build, and officially supported free-threading starts at
+  # CPython 3.14 (PEP 779).
+  linux-freethreaded:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [x86_64, aarch64]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build free-threaded wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist --interpreter python3.14t
+          sccache: 'true'
+          manylinux: auto
+      - name: Upload wheels
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheels-linux-freethreaded-${{ matrix.target }}
+          path: dist
+  macos-freethreaded:
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - runner: macos-latest
+            target: x86_64
+          - runner: macos-latest
+            target: aarch64
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build free-threaded wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist --interpreter python3.14t
+          sccache: 'true'
+      - name: Upload wheels
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheels-macos-freethreaded-${{ matrix.platform.target }}
+          path: dist
+  windows-freethreaded:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build free-threaded wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: x64
+          args: --release --out dist --interpreter python3.14t
+          sccache: 'true'
+      - name: Upload wheels
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheels-windows-freethreaded
           path: dist
   sdist:
     runs-on: ubuntu-latest
@@ -151,7 +240,7 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     if: "startsWith(github.ref, 'refs/tags/v')"
-    needs: [linux, musllinux, windows, macos, sdist]
+    needs: [linux, musllinux, windows, macos, linux-freethreaded, macos-freethreaded, windows-freethreaded, sdist]
     # Specifying a GitHub environment is optional, but strongly encouraged
     environment: release
     permissions:

@@ -4,8 +4,11 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12"] # Test with Python 3.10 to the latest available version
+        # Test the full supported range, including 3.13/3.14 and the
+        # free-threaded 3.14t build.
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14", "3.14t"]
     steps:
       # Checkout the latest commit associated with the PR
       - uses: actions/checkout@v7

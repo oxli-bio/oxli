@@ -1,5 +1,6 @@
 import gzip
 import json
+from pathlib import Path
 
 import pytest
 from test_attr import get_version_from_cargo_toml
@@ -7,6 +8,11 @@ from test_attr import get_version_from_cargo_toml
 from oxli import KmerCountTable
 
 CURRENT_VERSION = get_version_from_cargo_toml()
+
+DATA_DIR = Path(__file__).parent / 'data'
+
+# Binary-save magic prefix (must match SAVE_MAGIC in src/lib.rs).
+SAVE_MAGIC = b'OXLIBIN\x01'
 
 
 @pytest.fixture
@@ -115,3 +121,60 @@ def test_save_bad_path(sample_kmer_table, tmp_path, capfd):
 
     with pytest.raises(OSError, match='No such file or directory'):
         sample_kmer_table.save(temp_file)
+
+
+def test_save_uses_binary_format(sample_kmer_table, tmp_path):
+    """The new ``save`` writes the tagged gzipped-bincode binary format."""
+    temp_file = tmp_path / 'save.oxli'
+    sample_kmer_table.save(str(temp_file))
+
+    with open(temp_file, 'rb') as fh:
+        header = fh.read(len(SAVE_MAGIC))
+    assert header == SAVE_MAGIC, 'Saved file should start with the oxli binary magic.'
+
+
+def test_binary_roundtrip_with_store_kmers(tmp_path):
+    """Binary save/load round-trips counts and the packed k-mer map."""
+    table = KmerCountTable(ksize=7, store_kmers=True)
+    for seq in ('ACGTACGTACGT', 'TTTTGGGGCCCC', 'ACGTACGTACGT'):
+        table.consume(seq)
+
+    temp_file = str(tmp_path / 'roundtrip.oxli')
+    table.save(temp_file)
+    loaded = KmerCountTable.load(temp_file)
+
+    assert sorted(loaded.hashes) == sorted(table.hashes)
+    assert loaded.sum_counts == table.sum_counts
+    # The packed k-mer map survives the round-trip and decodes identically.
+    for h in table.hashes:
+        assert loaded.unhash(h) == table.unhash(h)
+
+
+def test_load_legacy_gzip_json():
+    """A gzip-JSON table written by an older oxli version still loads.
+
+    ``data/legacy_v0_2_0.json.gz`` is a committed fixture in the pre-binary
+    on-disk format (gzip of ``serialize_json`` output, ``store_kmers=True``,
+    ``version='0.2.0'``).
+    """
+    fixture = DATA_DIR / 'legacy_v0_2_0.json.gz'
+    table = KmerCountTable.load(str(fixture))
+
+    assert table.sum_counts == 18
+    assert len(table.hashes) == 7
+    # k=7 table: a 7-mer hashes without a size error.
+    assert table.hash_kmer('ACGTACG') == 15694570208561995776
+    # The stored (String) k-mers decode via the new packed representation.
+    assert table.unhash(15694570208561995776) == 'ACGTACG'
+
+
+def test_load_legacy_gzip_json_version_warning(capfd):
+    """Loading the old-format fixture warns about the version mismatch."""
+    fixture = DATA_DIR / 'legacy_v0_2_0.json.gz'
+    KmerCountTable.load(str(fixture))
+    captured = capfd.readouterr()
+    assert 'Version mismatch' in captured.err
+    assert (
+        f'loaded version is 0.2.0, but current version is {CURRENT_VERSION}'
+        in captured.err
+    )
