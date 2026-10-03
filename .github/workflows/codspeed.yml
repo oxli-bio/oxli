@@ -38,7 +38,7 @@ jobs:
       - name: Build the benchmark target(s)
         run: cargo codspeed build
       - name: Run the benchmarks
-        uses: CodSpeedHQ/action@v4
+        uses: CodSpeedHQ/action@v5
         with:
           mode: simulation
           run: cargo codspeed run
@@ -59,7 +59,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install '.[test]'
       - name: Run the benchmarks
-        uses: CodSpeedHQ/action@v4
+        uses: CodSpeedHQ/action@v5
         with:
           mode: simulation
           run: pytest src/python/benchmarks --codspeed
